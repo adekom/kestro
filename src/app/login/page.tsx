@@ -1,30 +1,11 @@
-"use client";
+import { redirect } from "next/navigation";
+import { isBootstrapOpen } from "@/server/services/users";
+import { LoginForm } from "./LoginForm";
 
-import { Suspense } from "react";
-import { useRouter } from "next/navigation";
-import { EmailLinkSignIn, exchangeForSession } from "@/components/EmailLinkSignIn";
-import { Wordmark } from "@/components/Wordmark";
+export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
-  const router = useRouter();
-  return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="card w-full max-w-sm p-6">
-        <h1 className="mb-1 text-2xl">
-          <Wordmark />
-        </h1>
-        <p className="mb-5 text-sm text-text-muted">Sign in with your work email. Only invited staff can enter.</p>
-        <Suspense>
-          <EmailLinkSignIn
-            returnPath="/login"
-            onToken={async (token) => {
-              const error = await exchangeForSession(token);
-              if (!error) router.replace("/projects");
-              return error;
-            }}
-          />
-        </Suspense>
-      </div>
-    </main>
-  );
+export default async function LoginPage() {
+  // Nobody can sign in until the first administrator exists, so send them to setup.
+  if (await isBootstrapOpen()) redirect("/setup");
+  return <LoginForm />;
 }
