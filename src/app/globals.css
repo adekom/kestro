@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/*
+ * Kestro application design tokens (spec §3A). These colour the app chrome
+ * only; firm report branding, status colours and markup colours are data.
+ * Components use the generated utilities (bg-primary, text-text, ...) or
+ * var(--color-*) — never raw hex values.
+ */
+@theme {
+  --color-primary: #167d8d;
+  --color-primary-hover: #10525e;
+  --color-primary-subtle: #e8f5f5;
+  --color-text: #25323b;
+  --color-text-muted: #5b6770;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f5f6;
+  --color-border: #d9dfe3;
+  --color-danger: #b42318;
+  --color-danger-subtle: #fdecea;
+  --color-success: #1f7a4d;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-primary bg-primary text-white hover:border-primary-hover hover:bg-primary-hover;
+  }
+  .btn-danger {
+    @apply border-danger text-danger hover:bg-danger-subtle;
+  }
+  .input {
+    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary aria-invalid:border-danger;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-text-muted;
+  }
+  .card {
+    @apply rounded-lg border border-border bg-surface;
+  }
+  .link {
+    @apply text-primary underline-offset-2 hover:text-primary-hover hover:underline;
+  }
+  .wordmark {
+    @apply font-semibold tracking-[-0.025em] lowercase;
+  }
+}
