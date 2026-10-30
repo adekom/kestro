@@ -52,4 +52,4 @@ on every request. Public photo links are opaque 192-bit tokens resolved server-s
 
 ## License
 
-Not yet chosen — to be selected by the project owner.
+[MIT](LICENSE) © 2026 Anton Dekom
