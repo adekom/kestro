@@ -13,7 +13,8 @@ const PALETTE = ["#C2410C", "#B45309", "#2563EB", "#7C3AED", "#15803D", "#475569
  */
 export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: StatusDef[]; resolvedStatusId: string }) {
   const sorted = [...statuses].sort((a, b) => a.order - b.order);
-  const [items, setItems] = useState(sorted.map(({ id, label, color }) => ({ id, label, color })));
+  // `key` identifies a row on screen; `id` is empty until the status is saved.
+  const [items, setItems] = useState(sorted.map(({ id, label, color }) => ({ key: id, id, label, color })));
   const [resolvedIndex, setResolvedIndex] = useState(Math.max(0, sorted.findIndex((s) => s.id === resolvedStatusId)));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -44,7 +45,7 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
         </thead>
         <tbody>
           {items.map((s, i) => (
-            <tr key={s.id || `new-${i}`} className="border-t border-border">
+            <tr key={s.key} className="border-t border-border">
               <td className="py-1.5 pr-2">
                 <input className="input" aria-label="Status name" value={s.label} onChange={(e) => update(i, { label: e.target.value })} />
               </td>
@@ -78,14 +79,14 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
         </tbody>
       </table>
       <div className="mt-3 flex items-center gap-2">
-        <button type="button" className="btn" onClick={() => setItems([...items, { id: "", label: "", color: PALETTE[items.length % PALETTE.length] }])}>
+        <button type="button" className="btn" onClick={() => setItems([...items, { key: crypto.randomUUID(), id: "", label: "", color: PALETTE[items.length % PALETTE.length] }])}>
           Add status
         </button>
         <button
           type="button"
           className="btn btn-primary"
           onClick={async () => {
-            const res = await saveStatusesAction(items, resolvedIndex);
+            const res = await saveStatusesAction(items.map(({ id, label, color }) => ({ id, label, color })), resolvedIndex);
             setMessage(res.ok ? { ok: true, text: "Statuses saved." } : { ok: false, text: res.error });
           }}
         >
