@@ -20,7 +20,7 @@ export function ContactPicker({
   onChange,
 }: {
   contacts: Contact[];
-  /** Contacts already on the project: shown, but not selectable. */
+  /** Contacts already on the project: left out of the list. */
   excludeIds?: string[];
   selected: ProjectContact[];
   onChange: (next: ProjectContact[]) => void;
@@ -33,7 +33,7 @@ export function ContactPicker({
   const onProject = new Set(excludeIds);
 
   const q = query.trim().toLowerCase();
-  const shown = contacts.filter((c) => !q || [contactName(c), c.email, c.company].some((f) => f.toLowerCase().includes(q)));
+  const shown = contacts.filter((c) => !onProject.has(c.id)).filter((c) => !q || [contactName(c), c.email, c.company].some((f) => f.toLowerCase().includes(q)));
 
   const toggle = (id: string) =>
     onChange(roleById.has(id) ? selected.filter((s) => s.contactId !== id) : [...selected, { contactId: id, projectRole: "" }]);
@@ -68,32 +68,23 @@ export function ContactPicker({
 
       <ul className="h-80 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Firm contacts">
         {shown.length === 0 && (
-          <li className="px-3 py-2 text-sm text-text-muted">No matching contacts. Use “Create new contact” to add one.</li>
+          <li className="px-3 py-2 text-sm text-text-muted">No matching contacts that aren’t already on the project. Use “Create new contact” to add one.</li>
         )}
         {shown.map((c) => {
-          const already = onProject.has(c.id);
           const checked = roleById.has(c.id);
           return (
             <li key={c.id} className={`flex items-center gap-3 px-3 py-2 text-sm ${checked ? "bg-primary-subtle" : ""}`}>
-              <label className={`flex min-w-0 flex-1 items-center gap-3 ${already ? "cursor-default" : "cursor-pointer"}`}>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={checked || already}
-                  disabled={already}
-                  onChange={() => toggle(c.id)}
-                />
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggle(c.id)} />
                 <span
                   aria-hidden
                   className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                    checked ? "border-primary bg-primary text-white" : already ? "border-border bg-surface-muted text-text-muted" : "border-border bg-surface"
+                    checked ? "border-primary bg-primary text-white" : "border-border bg-surface"
                   }`}
                 >
-                  {(checked || already) && (
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                  )}
+                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
                 </span>
-                <span className={`min-w-0 flex-1 ${already ? "text-text-muted" : ""}`}>
+                <span className="min-w-0 flex-1">
                   <span className="font-medium">{contactName(c)}</span>
                   {c.userEmail && <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-xs text-text-muted">staff</span>}
                   <span className="block truncate text-xs text-text-muted">{[c.company, c.email].filter(Boolean).join(" · ")}</span>
@@ -101,20 +92,16 @@ export function ContactPicker({
               </label>
               {/* Reserved column: holds the role field when selected, so rows never change shape. */}
               <div className="w-52 shrink-0">
-                {already ? (
-                  <span className="text-xs text-text-muted">On project</span>
-                ) : (
-                  <input
-                    className={`input ${checked ? "" : "invisible"}`}
-                    aria-label={`Role of ${contactName(c)} on project`}
-                    placeholder="Role on project (optional)"
-                    tabIndex={checked ? 0 : -1}
-                    value={roleById.get(c.id) ?? ""}
-                    onChange={(e) =>
-                      onChange(selected.map((s) => (s.contactId === c.id ? { ...s, projectRole: e.target.value } : s)))
-                    }
-                  />
-                )}
+                <input
+                  className={`input ${checked ? "" : "invisible"}`}
+                  aria-label={`Role of ${contactName(c)} on project`}
+                  placeholder="Role on project (optional)"
+                  tabIndex={checked ? 0 : -1}
+                  value={roleById.get(c.id) ?? ""}
+                  onChange={(e) =>
+                    onChange(selected.map((s) => (s.contactId === c.id ? { ...s, projectRole: e.target.value } : s)))
+                  }
+                />
               </div>
             </li>
           );

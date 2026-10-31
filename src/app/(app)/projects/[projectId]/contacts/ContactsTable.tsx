@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { UserMinus } from "lucide-react";
 import {
   addProjectContactsAction,
-  removeProjectContactAction,
+  removeProjectContactsAction,
   setProjectContactRoleAction,
   updateContactAction,
 } from "@/app/actions";
 import { ContactForm } from "@/components/ContactForm";
 import { ContactPicker } from "@/components/ContactPicker";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { SlideOver } from "@/components/ui/SlideOver";
@@ -50,6 +52,8 @@ export function ContactsTable({
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Contacts awaiting confirmation of removal (from ticked rows, a row menu or the panel).
+  const [removing, setRemoving] = useState<ContactRow[] | null>(null);
   const open = rows.find((r) => r.contact.id === openId) ?? null;
 
   return (
@@ -65,6 +69,12 @@ export function ContactsTable({
         createLabel="Add contacts"
         onRowClick={(r) => setOpenId((id) => (id === r.contact.id ? null : r.contact.id))}
         activeRowId={openId}
+        selectionActions={(selected) => (
+          <button type="button" className="btn btn-danger" onClick={() => setRemoving(selected)}>
+            <UserMinus className="h-4 w-4" aria-hidden /> Remove from Project
+          </button>
+        )}
+        rowActions={(r) => [{ label: "Remove from project", icon: UserMinus, danger: true, onSelect: () => setRemoving([r]) }]}
         initialSort={{ id: "name", dir: "asc" }}
         emptyMessage="No contacts on this project yet."
       />
@@ -87,13 +97,39 @@ export function ContactsTable({
             projectId={projectId}
             row={open}
             onChanged={() => router.refresh()}
-            onRemoved={() => {
-              setOpenId(null);
-              router.refresh();
-            }}
+            onRemove={() => setRemoving([open])}
           />
         )}
       </SlideOver>
+      <ConfirmDialog
+        open={Boolean(removing)}
+        title={removing && removing.length > 1 ? `Remove ${removing.length} contacts from project?` : "Remove contact from project?"}
+        confirmLabel="Remove from project"
+        danger
+        onClose={() => setRemoving(null)}
+        onConfirm={async () => {
+          const ids = (removing ?? []).map((r) => r.contact.id);
+          const res = await removeProjectContactsAction(projectId, ids);
+          if (!res.ok) return res.error;
+          if (openId && ids.includes(openId)) setOpenId(null);
+          router.refresh();
+          return null;
+        }}
+      >
+        <p>
+          {removing && removing.length === 1 ? (
+            <><span className="font-medium">{contactName(removing[0].contact)}</span> will be removed from this project.</>
+          ) : (
+            <>These contacts will be removed from this project:</>
+          )}
+        </p>
+        {removing && removing.length > 1 && (
+          <ul className="mt-2 max-h-40 list-disc overflow-y-auto pl-5">
+            {removing.map((r) => <li key={r.contact.id}>{contactName(r.contact)}</li>)}
+          </ul>
+        )}
+        <p className="mt-2 text-text-muted">They stay in the firm contact list and can be added back at any time.</p>
+      </ConfirmDialog>
     </>
   );
 }
@@ -143,12 +179,12 @@ function ContactEditor({
   projectId,
   row,
   onChanged,
-  onRemoved,
+  onRemove,
 }: {
   projectId: string;
   row: ContactRow;
   onChanged: () => void;
-  onRemoved: () => void;
+  onRemove: () => void;
 }) {
   const [role, setRole] = useState(row.projectRole);
   const [roleState, setRoleState] = useState<string | null>(null);
@@ -198,17 +234,8 @@ function ContactEditor({
       </section>
 
       <section className="border-t border-border pt-4">
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={async () => {
-            if (!window.confirm(`Remove ${contactName(row.contact)} from this project? They stay in the firm contact list.`)) return;
-            const res = await removeProjectContactAction(projectId, row.contact.id);
-            if (res.ok) onRemoved();
-            else setRoleState(res.error);
-          }}
-        >
-          Remove from project
+        <button type="button" className="btn btn-danger" onClick={onRemove}>
+          <UserMinus className="h-4 w-4" aria-hidden /> Remove from project
         </button>
       </section>
     </div>

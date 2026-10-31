@@ -39,11 +39,14 @@ export async function updateProjectAction(pid: string, patch: Partial<projects.P
 }
 
 export async function setProjectArchivedAction(pid: string, archived: boolean) {
+  return setProjectsArchivedAction([pid], archived);
+}
+
+export async function setProjectsArchivedAction(pids: string[], archived: boolean) {
   return toResult(async () => {
     await requireUser();
-    await projects.setProjectArchived(pid, archived);
-    revalidatePath("/projects");
-    revalidatePath(`/projects/${pid}`, "layout");
+    await projects.setProjectsArchived(pids.slice(0, 400), archived);
+    revalidatePath("/projects", "layout");
   });
 }
 
@@ -91,10 +94,10 @@ export async function setProjectContactRoleAction(pid: string, contactId: string
   });
 }
 
-export async function removeProjectContactAction(pid: string, contactId: string) {
+export async function removeProjectContactsAction(pid: string, contactIds: string[]) {
   return toResult(async () => {
     await requireUser();
-    await projects.removeProjectContact(pid, contactId);
+    await projects.removeProjectContacts(pid, contactIds);
     revalidatePath(`/projects/${pid}`, "layout");
   });
 }

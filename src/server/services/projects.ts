@@ -64,7 +64,14 @@ export async function updateProject(pid: string, patch: Partial<ProjectInput>): 
 }
 
 export async function setProjectArchived(pid: string, archived: boolean): Promise<void> {
-  await projectDoc(pid).update({ archived, updatedAt: now() });
+  await setProjectsArchived([pid], archived);
+}
+
+/** Archives (or restores) several projects at once. Archived projects stay available for restoring. */
+export async function setProjectsArchived(pids: string[], archived: boolean): Promise<void> {
+  const batch = db().batch();
+  for (const pid of new Set(pids)) batch.update(projectDoc(pid), { archived, updatedAt: now() });
+  await batch.commit();
 }
 
 export async function saveGroups(pid: string, names: Array<{ id?: string; name: string }>): Promise<void> {
@@ -123,11 +130,12 @@ export async function setProjectContactRole(pid: string, contactId: string, proj
 }
 
 /** Removes a contact from this project only; the firm contact is untouched. */
-export async function removeProjectContact(pid: string, contactId: string): Promise<void> {
+export async function removeProjectContacts(pid: string, contactIds: string[]): Promise<void> {
+  const remove = new Set(contactIds);
   await db().runTransaction(async (tx) => {
     const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
     if (!project) throw new UserError("Project not found.");
-    const contacts = (project.contacts ?? []).filter((c) => c.contactId !== contactId);
+    const contacts = (project.contacts ?? []).filter((c) => !remove.has(c.contactId));
     tx.update(projectDoc(pid), { contacts, contactIds: contacts.map((c) => c.contactId), updatedAt: now() });
   });
 }

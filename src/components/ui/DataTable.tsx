@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { RowMenu, type RowAction } from "./RowMenu";
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search } from "lucide-react";
 
 export interface Column<T> {
@@ -35,6 +36,8 @@ export function DataTable<T>({
   initialSort = null,
   emptyMessage = "Nothing here yet.",
   storageKey,
+  selectionActions,
+  rowActions,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -50,6 +53,10 @@ export function DataTable<T>({
   emptyMessage?: string;
   /** Remembers this viewer's column widths for this table. */
   storageKey?: string;
+  /** Buttons shown above the table while rows are ticked. */
+  selectionActions?: (selected: T[], clearSelection: () => void) => React.ReactNode;
+  /** Items for a three-dot menu in an unlabelled last column. */
+  rowActions?: (row: T) => RowAction[];
 }) {
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState<Sort>(initialSort);
@@ -80,6 +87,9 @@ export function DataTable<T>({
   }, [rows, filter, sort, columns, filterText]);
 
   const visibleIds = visible.map(rowId);
+  // Rows that disappear (e.g. removed) drop out of the selection automatically.
+  const selectedRows = rows.filter((r) => selected.has(rowId(r)));
+  const clearSelection = () => setSelected(new Set());
   const allChecked = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
   const someChecked = visibleIds.some((id) => selected.has(id));
 
@@ -127,11 +137,14 @@ export function DataTable<T>({
             {createLabel}
           </button>
         )}
-        {selected.size > 0 && (
-          <span className="text-sm text-text-muted">
-            {selected.size} selected ·{" "}
-            <button type="button" className="link" onClick={() => setSelected(new Set())}>Clear</button>
-          </span>
+        {selectedRows.length > 0 && (
+          <>
+            {selectionActions?.(selectedRows, clearSelection)}
+            <span className="text-sm text-text-muted">
+              {selectedRows.length} selected ·{" "}
+              <button type="button" className="link" onClick={clearSelection}>Clear</button>
+            </span>
+          </>
         )}
         <div className="relative ml-auto w-72">
           <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-text-muted" aria-hidden />
@@ -153,6 +166,7 @@ export function DataTable<T>({
             {columns.map((c, i) => (
               <col key={c.id} style={{ width: `${(shares[i] * 100).toFixed(3)}%` }} />
             ))}
+            {rowActions && <col style={{ width: 52 }} />}
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface text-left text-xs font-semibold text-text-muted">
             <tr className="border-b-2 border-border">
@@ -200,12 +214,13 @@ export function DataTable<T>({
                   </th>
                 );
               })}
+              {rowActions && <th aria-label="Actions" />}
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={columns.length + 1} className="px-4 py-10 text-center text-text-muted">
+                <td colSpan={columns.length + (rowActions ? 2 : 1)} className="px-4 py-10 text-center text-text-muted">
                   {rows.length ? "No rows match the filter." : emptyMessage}
                 </td>
               </tr>
@@ -239,6 +254,11 @@ export function DataTable<T>({
                   {columns.map((c) => (
                     <td key={c.id} className="truncate px-4 py-3.5">{c.cell(row)}</td>
                   ))}
+                  {rowActions && (
+                    <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <RowMenu actions={rowActions(row)} label="Row actions" />
+                    </td>
+                  )}
                 </tr>
               );
             })}
