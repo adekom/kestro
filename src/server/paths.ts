@@ -5,9 +5,10 @@ import { db } from "./firebaseAdmin";
 export const settingsDoc = () => db().doc("settings/organization");
 export const bootstrapDoc = () => db().doc("settings/bootstrap");
 export const usersCol = () => db().collection("users");
+/** Firm-wide contact list (staff and external people). */
+export const contactsCol = () => db().collection("contacts");
 export const projectsCol = () => db().collection("projects");
 export const projectDoc = (pid: string) => projectsCol().doc(pid);
-export const contactsCol = (pid: string) => projectDoc(pid).collection("contacts");
 export const reportsCol = (pid: string) => projectDoc(pid).collection("reports");
 export const reportDoc = (pid: string, rid: string) => reportsCol(pid).doc(rid);
 export const membershipsCol = (pid: string, rid: string) => reportDoc(pid, rid).collection("memberships");

@@ -1,19 +1,26 @@
 import "server-only";
-import { contactsCol, projectDoc, projectsCol } from "../paths";
+import { db } from "../firebaseAdmin";
+import { projectDoc, projectsCol } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { groupNameKey } from "@/lib/domain";
-import type { Contact, Group, Project } from "@/lib/types";
+import { getContactsByIds } from "./contacts";
+import type { Group, Project, ProjectContact } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
   const snap = await projectsCol().where("archived", "==", opts.archived).get();
-  return snap.docs.map((d) => d.data() as Project).sort((a, b) => a.name.localeCompare(b.name));
+  return snap.docs.map((d) => normalize(d.data() as Project)).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Fills fields added after a project was created. */
+function normalize(p: Project): Project {
+  return { ...p, contacts: p.contacts ?? [], contactIds: p.contactIds ?? [] };
 }
 
 export async function getProject(pid: string): Promise<Project> {
   const snap = await projectDoc(pid).get();
   if (!snap.exists) throw new UserError("Project not found.");
-  return snap.data() as Project;
+  return normalize(snap.data() as Project);
 }
 
 export type ProjectInput = Pick<Project, "name" | "code" | "address" | "description" | "reportPrefix">;
@@ -27,8 +34,11 @@ function clean(input: Partial<ProjectInput>): Partial<ProjectInput> {
   return out;
 }
 
-export async function createProject(input: ProjectInput): Promise<string> {
+export async function createProject(input: ProjectInput, contacts: ProjectContact[] = []): Promise<string> {
   const id = newId();
+  const entries = cleanEntries(contacts);
+  const known = await getContactsByIds(entries.map((e) => e.contactId));
+  if (entries.some((e) => !known.has(e.contactId))) throw new UserError("One of the selected contacts no longer exists.");
   const project: Project = {
     id,
     name: "",
@@ -40,6 +50,8 @@ export async function createProject(input: ProjectInput): Promise<string> {
     groups: [],
     archived: false,
     reportCount: 0,
+    contacts: entries,
+    contactIds: entries.map((e) => e.contactId),
     createdAt: now(),
     updatedAt: now(),
   };
@@ -69,26 +81,53 @@ export async function saveGroups(pid: string, names: Array<{ id?: string; name: 
   await projectDoc(pid).update({ groups, updatedAt: now() });
 }
 
-export async function listContacts(pid: string): Promise<Contact[]> {
-  const snap = await contactsCol(pid).get();
-  return snap.docs.map((d) => d.data() as Contact).sort((a, b) => a.name.localeCompare(b.name));
+// ---- Project contacts (references into the firm contact list) ----
+
+/** Projects the given firm contact is listed on ("My projects"). */
+export async function listProjectsForContact(contactId: string): Promise<Project[]> {
+  const snap = await projectsCol().where("contactIds", "array-contains", contactId).get();
+  return snap.docs.map((d) => normalize(d.data() as Project)).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function saveContact(pid: string, input: Omit<Contact, "id"> & { id?: string }): Promise<string> {
-  if (!input.name.trim()) throw new UserError("Contact name is required.");
-  const id = input.id || newId();
-  const contact: Contact = {
-    id,
-    name: input.name.trim().slice(0, 200),
-    company: input.company.slice(0, 200),
-    role: input.role.slice(0, 200),
-    email: input.email.slice(0, 200),
-    phone: input.phone.slice(0, 100),
-  };
-  await contactsCol(pid).doc(id).set(contact);
-  return id;
+function cleanEntries(entries: ProjectContact[]): ProjectContact[] {
+  const seen = new Set<string>();
+  return entries
+    .filter((e) => e.contactId && !seen.has(e.contactId) && seen.add(e.contactId))
+    .map((e) => ({ contactId: e.contactId, projectRole: String(e.projectRole ?? "").trim().slice(0, 100) }));
 }
 
-export async function deleteContact(pid: string, contactId: string): Promise<void> {
-  await contactsCol(pid).doc(contactId).delete();
+/** Adds contacts to a project (existing entries keep their role unless a new one is given). */
+export async function addProjectContacts(pid: string, entries: ProjectContact[]): Promise<void> {
+  const additions = cleanEntries(entries);
+  const known = await getContactsByIds(additions.map((e) => e.contactId));
+  if (additions.some((e) => !known.has(e.contactId))) throw new UserError("One of the selected contacts no longer exists.");
+  await db().runTransaction(async (tx) => {
+    const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
+    if (!project) throw new UserError("Project not found.");
+    const merged = new Map((project.contacts ?? []).map((e) => [e.contactId, e]));
+    for (const e of additions) merged.set(e.contactId, { ...e, projectRole: e.projectRole || merged.get(e.contactId)?.projectRole || "" });
+    const contacts = [...merged.values()];
+    tx.update(projectDoc(pid), { contacts, contactIds: contacts.map((c) => c.contactId), updatedAt: now() });
+  });
+}
+
+export async function setProjectContactRole(pid: string, contactId: string, projectRole: string): Promise<void> {
+  await db().runTransaction(async (tx) => {
+    const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
+    if (!project) throw new UserError("Project not found.");
+    const contacts = (project.contacts ?? []).map((c) =>
+      c.contactId === contactId ? { ...c, projectRole: projectRole.trim().slice(0, 100) } : c,
+    );
+    tx.update(projectDoc(pid), { contacts, updatedAt: now() });
+  });
+}
+
+/** Removes a contact from this project only; the firm contact is untouched. */
+export async function removeProjectContact(pid: string, contactId: string): Promise<void> {
+  await db().runTransaction(async (tx) => {
+    const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
+    if (!project) throw new UserError("Project not found.");
+    const contacts = (project.contacts ?? []).filter((c) => c.contactId !== contactId);
+    tx.update(projectDoc(pid), { contacts, contactIds: contacts.map((c) => c.contactId), updatedAt: now() });
+  });
 }

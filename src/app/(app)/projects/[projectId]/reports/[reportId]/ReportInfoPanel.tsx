@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { updateReportInfoAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import type { ReportView } from "@/server/services/reportView";
+import { contactName } from "@/lib/domain";
 import type { Attendee, Contact, SummaryOverride } from "@/lib/types";
 
 export function ReportInfoPanel({
@@ -117,9 +118,9 @@ export function ReportInfoPanel({
               key={c.id}
               type="button"
               className="btn"
-              onClick={() => set("attendees", [...info.attendees, { id: crypto.randomUUID(), contactId: c.id, name: c.name, company: c.company, present: true }])}
+              onClick={() => set("attendees", [...info.attendees, { id: crypto.randomUUID(), contactId: c.id, name: contactName(c), company: c.company, present: true }])}
             >
-              + {c.name}
+              + {contactName(c)}
             </button>
           ))}
           <button

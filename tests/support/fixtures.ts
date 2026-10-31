@@ -21,6 +21,7 @@ export async function allowlist(email: string, role: Role, enabled = true): Prom
     role,
     enabled,
     uid: null,
+    contactId: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     lastSignInAt: null,

@@ -55,7 +55,7 @@ describe("administrator-only operations via direct server calls", () => {
 
   it("an editor cannot invite staff", async () => {
     cookie = await sessionCookieFor("editor@example.com");
-    const res = await actions.addUserAction("new@example.com", "editor");
+    const res = await actions.addUserAction("new@example.com", "editor", { firstName: "New", lastName: "Person" });
     expect(res).toMatchObject({ ok: false });
     expect((await usersCol().doc("new@example.com").get()).exists).toBe(false);
   });
@@ -74,7 +74,7 @@ describe("administrator-only operations via direct server calls", () => {
 
   it("an admin can invite staff and grant admin", async () => {
     cookie = await sessionCookieFor("admin@example.com");
-    expect(await actions.addUserAction("new@example.com", "editor")).toMatchObject({ ok: true });
+    expect(await actions.addUserAction("new@example.com", "editor", { firstName: "New", lastName: "Person" })).toMatchObject({ ok: true });
     expect(await actions.updateUserAction("new@example.com", { role: "admin" })).toMatchObject({ ok: true });
   });
 
@@ -87,15 +87,17 @@ describe("administrator-only operations via direct server calls", () => {
   });
 });
 
+const OWNER = { firstName: "Olive", lastName: "Owner" };
+
 describe("first-administrator bootstrap", () => {
   it("works exactly once with the correct secret", async () => {
     expect(await users.isBootstrapOpen()).toBe(true);
-    await expect(users.completeBootstrap("owner@example.com", "uid1", "wrong-secret")).rejects.toThrow();
-    await users.completeBootstrap("owner@example.com", "uid1", process.env.KESTRO_BOOTSTRAP_SECRET!);
+    await expect(users.completeBootstrap("owner@example.com", "uid1", "wrong-secret", OWNER)).rejects.toThrow();
+    await users.completeBootstrap("owner@example.com", "uid1", process.env.KESTRO_BOOTSTRAP_SECRET!, OWNER);
     expect((await usersCol().doc("owner@example.com").get()).data()?.role).toBe("admin");
     expect(await users.isBootstrapOpen()).toBe(false);
     await expect(
-      users.completeBootstrap("attacker@example.com", "uid2", process.env.KESTRO_BOOTSTRAP_SECRET!),
+      users.completeBootstrap("attacker@example.com", "uid2", process.env.KESTRO_BOOTSTRAP_SECRET!, OWNER),
     ).rejects.toThrow(/already/);
     expect((await usersCol().doc("attacker@example.com").get()).exists).toBe(false);
   });

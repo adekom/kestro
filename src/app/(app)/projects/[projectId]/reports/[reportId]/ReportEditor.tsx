@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { addMembershipsAction, createObservationAction, reorderMembershipsAction } from "@/app/actions";
+import { reorderMembershipsAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider } from "@/components/autosave";
-import { reportLabel } from "@/lib/domain";
+import { formatLongDate, reportLabel } from "@/lib/domain";
 import type { ReportView } from "@/server/services/reportView";
 import type { Contact, Photo } from "@/lib/types";
 import { ReportInfoPanel } from "./ReportInfoPanel";
@@ -17,7 +17,6 @@ export interface EditorProps {
   view: ReportView;
   contacts: Contact[];
   library: Photo[];
-  addable: Array<{ id: string; number: string; title: string }>;
   previousOngoingWork: string;
   initialTab: Tab;
   initialObservationId: string | null;
@@ -31,7 +30,7 @@ export function ReportEditor(props: EditorProps) {
   );
 }
 
-function Editor({ view, contacts, library, addable, previousOngoingWork, initialTab, initialObservationId }: EditorProps) {
+function Editor({ view, contacts, library, previousOngoingWork, initialTab, initialObservationId }: EditorProps) {
   const { project, report, settings } = view;
   const pid = project.id;
   const rid = report.id;
@@ -76,7 +75,7 @@ function Editor({ view, contacts, library, addable, previousOngoingWork, initial
           <Link href={`/projects/${pid}`} className="link block truncate text-xs">{project.name}</Link>
           <h1 className="text-base font-semibold">
             {reportLabel(project.reportPrefix, report.sequence)}
-            <span className="ml-2 font-normal text-text-muted">{report.visitDate}</span>
+            <span className="ml-2 font-normal text-text-muted">{formatLongDate(report.visitDate)}</span>
           </h1>
         </div>
         <div className="ml-auto flex items-center gap-3">
@@ -138,13 +137,14 @@ function Editor({ view, contacts, library, addable, previousOngoingWork, initial
               );
             })}
           </ul>
-          <AddObservation
-            pid={pid}
-            rid={rid}
-            view={view}
-            addable={addable}
-            onCreated={(oid) => navigate("obs", oid)}
-          />
+          <div className="flex gap-2 border-t border-border p-2">
+            <Link className="btn btn-primary flex-1 justify-center" href={`/projects/${pid}/reports/${rid}/observations/new`}>
+              Add observation
+            </Link>
+            <Link className="btn flex-1 justify-center" href={`/projects/${pid}/reports/${rid}/observations/add`}>
+              Carry forward
+            </Link>
+          </div>
         </aside>
 
         <main className="min-w-0 flex-1 overflow-y-auto p-6">
@@ -184,114 +184,6 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
     >
       {children}
     </button>
-  );
-}
-
-function AddObservation({
-  pid,
-  rid,
-  view,
-  addable,
-  onCreated,
-}: {
-  pid: string;
-  rid: string;
-  view: ReportView;
-  addable: EditorProps["addable"];
-  onCreated: (oid: string) => void;
-}) {
-  const { settings, project } = view;
-  const defaultStatus = settings.statuses.find((s) => s.id !== settings.resolvedStatusId)?.id ?? settings.statuses[0]?.id ?? "";
-  const [mode, setMode] = useState<"closed" | "new" | "existing">("closed");
-  const [title, setTitle] = useState("");
-  const [statusId, setStatusId] = useState(defaultStatus);
-  const [groupId, setGroupId] = useState("");
-  const [lookup, setLookup] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  if (mode === "closed") {
-    return (
-      <div className="flex gap-2 border-t border-border p-2">
-        <button type="button" className="btn btn-primary flex-1 justify-center" onClick={() => setMode("new")}>Add observation</button>
-        <button type="button" className="btn flex-1 justify-center" onClick={() => setMode("existing")} disabled={addable.length === 0}>
-          Carry forward
-        </button>
-      </div>
-    );
-  }
-
-  if (mode === "existing") {
-    const q = lookup.trim().toLowerCase();
-    const matches = addable.filter((a) => !q || `${a.number} ${a.title}`.toLowerCase().includes(q)).slice(0, 20);
-    return (
-      <div className="space-y-2 border-t border-border p-2">
-        <label className="label" htmlFor="add-existing">Add an existing project observation</label>
-        <input id="add-existing" className="input" autoFocus placeholder="Search by number or title" value={lookup} onChange={(e) => setLookup(e.target.value)} />
-        <ul className="max-h-48 overflow-y-auto text-sm">
-          {matches.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                className="w-full rounded px-2 py-1 text-left hover:bg-surface-muted"
-                onClick={async () => {
-                  const res = await addMembershipsAction(pid, rid, [a.id]);
-                  if (res.ok) {
-                    setMode("closed");
-                    onCreated(a.id);
-                  } else setError(res.error);
-                }}
-              >
-                <span className="mr-2 font-medium">{a.number}</span>
-                {a.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {error && <p className="text-xs text-danger" role="alert">{error}</p>}
-        <button type="button" className="btn" onClick={() => setMode("closed")}>Cancel</button>
-      </div>
-    );
-  }
-
-  return (
-    <form
-      className="space-y-2 border-t border-border p-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const res = await createObservationAction(pid, rid, { title, description: "", statusId, groupId: groupId || null });
-        if (!res.ok) return setError(res.error);
-        setTitle("");
-        setMode("closed");
-        onCreated(res.data);
-      }}
-    >
-      <div>
-        <label className="label" htmlFor="new-obs-title">Title</label>
-        <input id="new-obs-title" className="input" autoFocus required value={title} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="label" htmlFor="new-obs-status">Status</label>
-          <select id="new-obs-status" className="input" value={statusId} onChange={(e) => setStatusId(e.target.value)}>
-            {settings.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </div>
-        {project.groups.length > 0 && (
-          <div className="flex-1">
-            <label className="label" htmlFor="new-obs-group">Group</label>
-            <select id="new-obs-group" className="input" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-              <option value="">None</option>
-              {project.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
-        )}
-      </div>
-      {error && <p className="text-xs text-danger" role="alert">{error}</p>}
-      <div className="flex gap-2">
-        <button className="btn btn-primary">Add</button>
-        <button type="button" className="btn" onClick={() => setMode("closed")}>Cancel</button>
-      </div>
-    </form>
   );
 }
 

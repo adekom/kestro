@@ -15,6 +15,7 @@ interface Candidate {
 }
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+const nowTime = () => new Date().toTimeString().slice(0, 5); // HH:MM in local time
 
 /**
  * Carry-forward (spec §6): defaults to the most recent report, preselecting
@@ -35,8 +36,13 @@ export function NewReportForm({
 }) {
   const router = useRouter();
   const [sourceId, setSourceId] = useState<string>(sources[0]?.id ?? "");
-  const [visitDate, setVisitDate] = useState(today());
+  // Filled in the browser: the server's clock may be in another time zone.
+  const [visitDate, setVisitDate] = useState("");
   const [visitTime, setVisitTime] = useState("");
+  useEffect(() => {
+    setVisitDate(today());
+    setVisitTime(nowTime());
+  }, []);
   const [authorName, setAuthorName] = useState(defaultAuthor);
   const [fromSource, setFromSource] = useState<Candidate[]>([]);
   const [older, setOlder] = useState<Candidate[]>([]);
@@ -129,7 +135,7 @@ export function NewReportForm({
           <input id="visit-date" type="date" className="input" required value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="visit-time">Time (optional)</label>
+          <label className="label" htmlFor="visit-time">Time</label>
           <input id="visit-time" type="time" className="input" value={visitTime} onChange={(e) => setVisitTime(e.target.value)} />
         </div>
         <div className="col-span-2">

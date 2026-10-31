@@ -13,16 +13,17 @@ import * as observations from "@/server/services/observations";
 import * as photos from "@/server/services/photos";
 import * as settings from "@/server/services/settings";
 import * as users from "@/server/services/users";
-import type { Contact, Role, StatusDef } from "@/lib/types";
+import * as contacts from "@/server/services/contacts";
+import type { ProjectContact, Role, StatusDef } from "@/lib/types";
 
 const reportPath = (pid: string, rid: string) => `/projects/${pid}/reports/${rid}`;
 
 // ---- Projects ----
 
-export async function createProjectAction(input: projects.ProjectInput) {
+export async function createProjectAction(input: projects.ProjectInput, contacts: ProjectContact[] = []) {
   return toResult(async () => {
     await requireUser();
-    const id = await projects.createProject(input);
+    const id = await projects.createProject(input, contacts);
     revalidatePath("/projects");
     return id;
   });
@@ -53,19 +54,46 @@ export async function saveGroupsAction(pid: string, groups: Array<{ id?: string;
   });
 }
 
-export async function saveContactAction(pid: string, contact: Omit<Contact, "id"> & { id?: string }) {
+// ---- Contacts (firm-wide) and project contacts ----
+
+export async function createContactAction(input: contacts.ContactInput, addToProjectId?: string, projectRole = "") {
   return toResult(async () => {
     await requireUser();
-    const id = await projects.saveContact(pid, contact);
-    revalidatePath(`/projects/${pid}`, "layout");
-    return id;
+    const contact = await contacts.createContact(input);
+    if (addToProjectId) await projects.addProjectContacts(addToProjectId, [{ contactId: contact.id, projectRole }]);
+    revalidatePath("/contacts");
+    if (addToProjectId) revalidatePath(`/projects/${addToProjectId}`, "layout");
+    return contact;
   });
 }
 
-export async function deleteContactAction(pid: string, contactId: string) {
+export async function updateContactAction(id: string, input: contacts.ContactInput) {
   return toResult(async () => {
     await requireUser();
-    await projects.deleteContact(pid, contactId);
+    await contacts.updateContact(id, input);
+    revalidatePath("/", "layout");
+  });
+}
+
+export async function addProjectContactsAction(pid: string, entries: ProjectContact[]) {
+  return toResult(async () => {
+    await requireUser();
+    await projects.addProjectContacts(pid, entries);
+    revalidatePath(`/projects/${pid}`, "layout");
+  });
+}
+
+export async function setProjectContactRoleAction(pid: string, contactId: string, projectRole: string) {
+  return toResult(async () => {
+    await requireUser();
+    await projects.setProjectContactRole(pid, contactId, projectRole);
+  });
+}
+
+export async function removeProjectContactAction(pid: string, contactId: string) {
+  return toResult(async () => {
+    await requireUser();
+    await projects.removeProjectContact(pid, contactId);
     revalidatePath(`/projects/${pid}`, "layout");
   });
 }
@@ -231,11 +259,12 @@ export async function revokeShareAction(pid: string, rid: string, attachmentId: 
 
 // ---- Administration ----
 
-export async function addUserAction(email: string, role: Role) {
+export async function addUserAction(email: string, role: Role, names: users.StaffNames) {
   return toResult(async () => {
     await requireUser("admin");
     if (role !== "admin" && role !== "editor") throw new Error("Invalid role");
-    await users.addUser(email, role);
+    await users.addUser(email, role, names);
+    revalidatePath("/contacts");
     revalidatePath("/settings/users");
   });
 }

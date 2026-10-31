@@ -14,6 +14,8 @@ export interface AppUser {
   role: Role;
   enabled: boolean;
   uid: string | null;
+  /** The staff member's entry in the firm contact list (holds their name). */
+  contactId: string | null;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
   lastSignInAt: IsoTimestamp | null;
@@ -69,17 +71,36 @@ export interface Project {
   archived: boolean;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */
   reportCount: number;
+  /** Firm contacts involved in this project, with their role on it. */
+  contacts: ProjectContact[];
+  /** Same IDs as `contacts`, kept for array-contains queries ("My projects"). */
+  contactIds: string[];
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
 }
 
+/** Entry in the firm-wide contact list. Staff members are contacts too. */
 export interface Contact {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   company: string;
-  role: string;
+  title: string;
+  /** Required and unique across the firm (compared case-insensitively). */
   email: string;
+  /** Lower-cased email used for the uniqueness check. */
+  emailKey: string;
   phone: string;
+  /** Set when this contact is a Kestro user. */
+  userEmail: string | null;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+}
+
+export interface ProjectContact {
+  contactId: string;
+  /** Role on this project, e.g. "Contractor" or "Owner's representative". */
+  projectRole: string;
 }
 
 export interface Attendee {

@@ -12,6 +12,8 @@ import {
 } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import { StatusBadge } from "@/components/StatusBadge";
+import { StatusSelect } from "@/components/StatusSelect";
+import { formatLongDate } from "@/lib/domain";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
 import type { Photo, StatusDef } from "@/lib/types";
 import { PhotoAttachments } from "./PhotoAttachments";
@@ -57,6 +59,7 @@ export function ObservationPanel({
   const [error, setError] = useState<string | null>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const thisVisitUpdates = item.updates.filter((u) => u.reportId === report.id);
+  const carriedForward = o.originReportId !== report.id;
 
   const run = async (p: Promise<{ ok: boolean; error?: string }>) => {
     const res = await p;
@@ -87,27 +90,20 @@ export function ObservationPanel({
               onTitleChange(e.target.value);
             }}
           />
-          <p className="mt-1 text-xs text-text-muted">Opened {o.originalDate}. Shared across every report that includes it.</p>
+          <p className="mt-1 text-xs text-text-muted">Opened {formatLongDate(o.originalDate)}. Shared across every report that includes it.</p>
         </div>
       </header>
 
       <section className="card grid grid-cols-2 gap-3 p-4">
         <div>
-          <label className="label" htmlFor="obs-status">Status as of this visit ({report.visitDate})</label>
-          <select
+          <label className="label" htmlFor="obs-status">Status as of this visit ({formatLongDate(report.visitDate)})</label>
+          <StatusSelect
             id="obs-status"
-            className="input"
-            value={item.statusId ?? ""}
-            onChange={(e) => run(setStatusAction(project.id, report.id, o.id, e.target.value))}
-          >
-            {!item.statusId && <option value="">No status</option>}
-            {settings.statuses.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-                {s.id === settings.resolvedStatusId ? " (resolved)" : ""}
-              </option>
-            ))}
-          </select>
+            statuses={settings.statuses}
+            value={item.statusId}
+            resolvedStatusId={settings.resolvedStatusId}
+            onChange={(statusId) => run(setStatusAction(project.id, report.id, o.id, statusId))}
+          />
         </div>
         {project.groups.length > 0 && (
           <div>
@@ -129,46 +125,49 @@ export function ObservationPanel({
         </div>
       </section>
 
-      <section className="card p-4" aria-labelledby="history-heading">
-        <h2 id="history-heading" className="mb-2 text-sm font-semibold">History up to this visit</h2>
-        <ol className="space-y-2 text-sm">
-          {item.statusEvents.map((e) => (
-            <li key={e.id} className="flex gap-3 text-text-muted">
-              <span className="w-24 shrink-0">{e.date}</span>
-              <span>Status: <StatusBadge status={statusById.get(e.statusId)} /></span>
-            </li>
-          ))}
-          {item.updates.map((u) =>
-            u.reportId === report.id ? (
-              <EditableUpdate
-                key={u.id}
-                date={u.date}
-                text={u.text}
-                onSave={(text) => run(editUpdateAction(project.id, report.id, o.id, u.id, text))}
-                onDelete={() => run(deleteUpdateAction(project.id, report.id, o.id, u.id))}
-              />
-            ) : (
-              <li key={u.id} className="flex gap-3">
-                <span className="w-24 shrink-0 text-text-muted">{u.date}</span>
-                <span className="whitespace-pre-wrap">{u.text}</span>
+      {/* An observation created in this report is its initial record: no history or updates yet. */}
+      {carriedForward && (
+        <section className="card p-4" aria-labelledby="history-heading">
+          <h2 id="history-heading" className="mb-2 text-sm font-semibold">History up to this visit</h2>
+          <ol className="space-y-2 text-sm">
+            {item.statusEvents.map((e) => (
+              <li key={e.id} className="flex gap-3 text-text-muted">
+                <span className="w-32 shrink-0">{formatLongDate(e.date)}</span>
+                <span>Status: <StatusBadge status={statusById.get(e.statusId)} /></span>
               </li>
-            ),
-          )}
-        </ol>
-        <form
-          className="mt-3 space-y-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (await run(addUpdateAction(project.id, report.id, o.id, newUpdate))) setNewUpdate("");
-          }}
-        >
-          <label className="label" htmlFor="new-update">
-            {thisVisitUpdates.length ? "Add another update for this visit" : `Update for this visit (${report.visitDate})`}
-          </label>
-          <textarea id="new-update" className="input min-h-16" value={newUpdate} onChange={(e) => setNewUpdate(e.target.value)} />
-          <button className="btn" disabled={!newUpdate.trim()}>Add update</button>
-        </form>
-      </section>
+            ))}
+            {item.updates.map((u) =>
+              u.reportId === report.id ? (
+                <EditableUpdate
+                  key={u.id}
+                  date={u.date}
+                  text={u.text}
+                  onSave={(text) => run(editUpdateAction(project.id, report.id, o.id, u.id, text))}
+                  onDelete={() => run(deleteUpdateAction(project.id, report.id, o.id, u.id))}
+                />
+              ) : (
+                <li key={u.id} className="flex gap-3">
+                  <span className="w-32 shrink-0 text-text-muted">{formatLongDate(u.date)}</span>
+                  <span className="whitespace-pre-wrap">{u.text}</span>
+                </li>
+              ),
+            )}
+          </ol>
+          <form
+            className="mt-3 space-y-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await run(addUpdateAction(project.id, report.id, o.id, newUpdate))) setNewUpdate("");
+            }}
+          >
+            <label className="label" htmlFor="new-update">
+              {thisVisitUpdates.length ? "Add another update for this visit" : `Update for this visit (${formatLongDate(report.visitDate)})`}
+            </label>
+            <textarea id="new-update" className="input min-h-16" value={newUpdate} onChange={(e) => setNewUpdate(e.target.value)} />
+            <button className="btn" disabled={!newUpdate.trim()}>Add update</button>
+          </form>
+        </section>
+      )}
 
       <PhotoAttachments view={view} item={item} library={library} onError={setError} />
 
@@ -216,7 +215,7 @@ function EditableUpdate({
   const [value, setValue] = useState(text);
   return (
     <li className="flex gap-3">
-      <span className="w-24 shrink-0 text-text-muted">{date}</span>
+      <span className="w-32 shrink-0 text-text-muted">{formatLongDate(date)}</span>
       {editing ? (
         <div className="flex-1 space-y-1">
           <textarea className="input min-h-16" aria-label="Edit update" value={value} onChange={(e) => setValue(e.target.value)} />

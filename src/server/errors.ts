@@ -1,3 +1,5 @@
+import type { Contact } from "@/lib/types";
+
 /** An error whose message is safe and useful to show to the user. */
 export class UserError extends Error {
   constructor(message: string) {
@@ -14,7 +16,9 @@ export class ConflictError extends UserError {
   }
 }
 
-export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string; conflict?: boolean };
+export type ActionResult<T = undefined> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; conflict?: boolean; duplicateContact?: Contact };
 
 /** Wraps server-action bodies so only intended messages reach the browser. */
 export async function toResult<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
@@ -22,6 +26,9 @@ export async function toResult<T>(fn: () => Promise<T>): Promise<ActionResult<T>
     return { ok: true, data: await fn() };
   } catch (e) {
     if (e instanceof ConflictError) return { ok: false, error: e.message, conflict: true };
+    if (e instanceof UserError && e.name === "DuplicateContactError") {
+      return { ok: false, error: e.message, duplicateContact: (e as UserError & { existing: Contact }).existing };
+    }
     if (e instanceof UserError) return { ok: false, error: e.message };
     if (e instanceof Error && e.name === "AuthError") return { ok: false, error: e.message };
     console.error(e);

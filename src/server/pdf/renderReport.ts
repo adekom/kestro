@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import { bucket } from "../firebaseAdmin";
 import { ensureShareToken, readPhotoFile } from "../services/photos";
 import type { ReportView, ObservationInReport } from "../services/reportView";
-import { reportLabel, slug } from "@/lib/domain";
+import { formatLongDate, reportLabel, slug } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 
 // Single configurable template (spec §9). Text is real PDF text (selectable);
@@ -82,7 +82,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   // ---- Title block ----
   doc.font("Helvetica-Bold").fontSize(17).fillColor(INK).text(project.name, M.left, doc.y, { width: CONTENT_W });
   doc.font("Helvetica").fontSize(12).text(
-    `${reportLabel(project.reportPrefix, report.sequence)}  ·  ${formatDate(report.visitDate)}${report.visitTime ? `  ${report.visitTime}` : ""}`,
+    `${reportLabel(project.reportPrefix, report.sequence)}  ·  ${formatLongDate(report.visitDate)}${report.visitTime ? `  ${report.visitTime}` : ""}`,
   );
   doc.font("Helvetica").fontSize(9).fillColor(MUTED);
   const facts = [
@@ -189,7 +189,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     // Left column: number, status, original date.
     doc.font("Helvetica-Bold").fontSize(11).fillColor(INK).text(o.number, M.left, top, { width: META_W });
     statusChip(doc, statuses.get(o.statusId ?? ""), M.left, doc.y + 2, META_W);
-    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`Opened ${formatDate(o.observation.originalDate)}`, M.left, doc.y + 4, { width: META_W });
+    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`Opened ${formatLongDate(o.observation.originalDate)}`, M.left, doc.y + 4, { width: META_W });
     const leftEnd = doc.y;
     const startPage = currentPage();
 
@@ -202,7 +202,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     for (const u of o.updates) {
       doc.moveDown(0.3);
       ensureSpace(26);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED).text(formatDate(u.date), BODY_X, doc.y, { width: BODY_W });
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED).text(formatLongDate(u.date), BODY_X, doc.y, { width: BODY_W });
       doc.font("Helvetica").fontSize(10).fillColor(INK).text(u.text.trim(), BODY_X, doc.y, { width: BODY_W });
     }
     if (currentPage() === startPage) doc.y = Math.max(doc.y, leftEnd);
@@ -253,9 +253,3 @@ function statusChip(doc: PDFKit.PDFDocument, status: StatusDef | undefined, x: n
   doc.font("Helvetica").fontSize(9).fillColor(INK).text(label, x + 11, y, { width: width - 11 });
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
-}

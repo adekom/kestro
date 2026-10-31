@@ -43,6 +43,34 @@ export async function getStatusEvents(pid: string, oid: string): Promise<StatusE
   return snap.docs.map((d) => d.data() as StatusEvent);
 }
 
+export interface ReportSummary {
+  report: Report;
+  /** Observation count per status ID as of the report's visit date ("" = no status). */
+  statusCounts: Record<string, number>;
+}
+
+/** Reports for the project page, each with its observations counted by status. */
+export async function reportSummaries(pid: string): Promise<ReportSummary[]> {
+  const reports = await listReports(pid);
+  const memberships = await Promise.all(reports.map((r) => getMemberships(pid, r.id)));
+  const observationIds = [...new Set(memberships.flat().map((m) => m.observationId))];
+  const [obsSnaps, events] = await Promise.all([
+    observationIds.length ? db().getAll(...observationIds.map((id) => observationsCol(pid).doc(id))) : [],
+    Promise.all(observationIds.map((id) => getStatusEvents(pid, id))),
+  ]);
+  const live = new Set(obsSnaps.filter((s) => s.exists && !(s.data() as Observation).deletedAt).map((s) => s.id));
+  const eventsById = new Map(observationIds.map((id, i) => [id, events[i]]));
+  return reports.map((report, i) => {
+    const statusCounts: Record<string, number> = {};
+    for (const m of memberships[i]) {
+      if (!live.has(m.observationId)) continue;
+      const status = statusOn(eventsById.get(m.observationId) ?? [], report.visitDate) ?? "";
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+    return { report, statusCounts };
+  });
+}
+
 export interface CarryForwardCandidate {
   observationId: string;
   number: string;

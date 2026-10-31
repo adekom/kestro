@@ -2,8 +2,8 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminAuth } from "./firebaseAdmin";
-import { usersCol } from "./paths";
-import type { AppUser, Role } from "@/lib/types";
+import { contactsCol, usersCol } from "./paths";
+import type { AppUser, Contact, Role } from "@/lib/types";
 
 export const SESSION_COOKIE = "__session";
 export const SESSION_MAX_AGE_MS = 5 * 24 * 60 * 60 * 1000;
@@ -12,6 +12,9 @@ export interface SessionUser {
   uid: string;
   email: string;
   role: Role;
+  contactId: string | null;
+  /** For display; falls back to the email's local part when no name is set. */
+  firstName: string;
 }
 
 export class AuthError extends Error {
@@ -44,7 +47,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!decoded.email) return null;
     const user = await findActiveUser(decoded.email);
     if (!user) return null;
-    return { uid: decoded.uid, email: user.email, role: user.role };
+    const contact = user.contactId ? ((await contactsCol().doc(user.contactId).get()).data() as Contact | undefined) : undefined;
+    return {
+      uid: decoded.uid,
+      email: user.email,
+      role: user.role,
+      contactId: user.contactId ?? null,
+      firstName: contact?.firstName || user.email.split("@")[0],
+    };
   } catch {
     return null;
   }

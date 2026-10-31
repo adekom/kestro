@@ -54,6 +54,25 @@ export function applicableToReport<T extends { date: IsoDate; reportId: string |
   return items.filter((i) => i.date <= report.visitDate || i.reportId === report.id);
 }
 
+export function contactName(c: { firstName: string; lastName: string }): string {
+  return `${c.firstName} ${c.lastName}`.trim();
+}
+
+/** Comparison key for contact emails (uniqueness is case-insensitive). */
+export function emailKey(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export const EMAIL_PATTERN = /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/;
+
+/** Long display date, e.g. "July 14, 2026". */
+export function formatLongDate(iso: IsoDate): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+}
+
 /** Comparison key for group names: unique ignoring case and surrounding/repeated spaces. */
 export function groupNameKey(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
