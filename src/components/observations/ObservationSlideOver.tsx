@@ -137,9 +137,7 @@ function ObservationEditor({
   };
 
   // Timeline: the original record, then each later visit with its updates and the status then.
-  const laterDates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
-    .filter((d) => d > o.originalDate)
-    .sort();
+  const laterDates = historyDates(item);
 
   return (
     <div className="space-y-6">
@@ -167,6 +165,7 @@ function ObservationEditor({
           <div>
             <label className="label" htmlFor="obs-status">Status</label>
             <StatusSelect
+              inline
               id="obs-status"
               statuses={statuses}
               value={item.statusId}
@@ -203,7 +202,6 @@ function ObservationEditor({
             last={laterDates.length === 0}
           >
             {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
-            {carriedForward && <p className="mt-1 text-xs text-text-muted">The original record is fixed; add an update below instead.</p>}
           </TimelineEntry>
           {laterDates.map((date, i) => {
             const updates = item.updates.filter((u) => u.date === date);
@@ -233,7 +231,7 @@ function ObservationEditor({
           })}
         </ol>
         {/* Updates belong to later visits; the creating report holds the original description. */}
-        {carriedForward && (
+        {carriedForward && !item.updates.some((u) => u.reportId === report.id) && (
           <form
             className="space-y-2"
             onSubmit={async (e) => {
@@ -286,9 +284,7 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
   const { item, report, statuses, groups } = detail;
   const o = item.observation;
   const statusById = new Map(statuses.map((s) => [s.id, s]));
-  const laterDates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
-    .filter((d) => d > o.originalDate)
-    .sort();
+  const laterDates = historyDates(item);
   const fact = (label: string, value: React.ReactNode) => (
     <div>
       <div className="label">{label}</div>
@@ -302,7 +298,7 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
           As of <span className="font-medium text-text">{detail.reportLabel}</span>. Edit observations from their field report.
         </span>
         <Link className="btn shrink-0" href={`/projects/${projectId}/reports/${report.id}?obs=${o.id}`}>
-          <FileText className="h-4 w-4" aria-hidden /> Go to Report
+          <FileText className="h-4 w-4" aria-hidden /> Go to most recent report
         </Link>
       </div>
       <section className="grid grid-cols-2 gap-3">
@@ -354,6 +350,23 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
       )}
     </div>
   );
+}
+
+/**
+ * Visits shown after the creation dot: those with an update, or where the
+ * status differs from the visit before. Re-selecting the same status, or
+ * deleting the only update, leaves no dot.
+ */
+function historyDates(item: ObservationDetail["item"]): string[] {
+  const o = item.observation;
+  const dates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
+    .filter((d) => d > o.originalDate)
+    .sort();
+  return dates.filter((d) => {
+    if (item.updates.some((u) => u.date === d)) return true;
+    const before = statusOn(item.statusEvents.filter((e) => e.date < d), d);
+    return statusOn(item.statusEvents, d) !== before;
+  });
 }
 
 /** One dot on the history timeline, joined to the next by a vertical line. */

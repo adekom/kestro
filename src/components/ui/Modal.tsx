@@ -40,7 +40,7 @@ export function Modal({
       {open && (
         <div className="flex max-h-[90vh] flex-col">
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <h2 id="modal-title" className="text-lg font-semibold">{title}</h2>
+            <h2 id="modal-title" className="field-inset text-lg font-semibold">{title}</h2>
             <button type="button" className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text" onClick={onClose} aria-label="Close">
               <X className="h-5 w-5" aria-hidden />
             </button>

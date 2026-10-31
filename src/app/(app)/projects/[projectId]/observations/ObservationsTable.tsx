@@ -12,7 +12,7 @@ import type { ObservationRow } from "@/server/services/tables";
 
 /**
  * Every observation in the project, read-only. Observations are created and
- * edited in the context of a field report; "Go to Report" opens the latest one.
+ * edited in the context of a field report; "Go to most recent report" opens the latest one.
  */
 export function ObservationsTable({
   projectId,
@@ -43,7 +43,7 @@ export function ObservationsTable({
         sortValue: (r) => statusById.get(r.statusId ?? "")?.order ?? 999,
       },
       { id: "group", header: "Group", weight: 1.4, cell: (r) => groupById.get(r.groupId ?? "")?.name ?? "", sortValue: (r) => groupById.get(r.groupId ?? "")?.order ?? 999 },
-      { id: "created", header: "Date Created", weight: 1.4, cell: (r) => formatLongDate(r.originalDate), sortValue: (r) => r.originalDate },
+      { id: "visit", header: "Visit Date", weight: 1.4, cell: (r) => formatLongDate(r.originalDate), sortValue: (r) => r.originalDate },
     ],
     [statusById, groupById],
   );
@@ -51,7 +51,7 @@ export function ObservationsTable({
   return (
     <>
       <DataTable
-        storageKey="observations-v3"
+        storageKey="observations-v4"
         rows={rows}
         columns={columns}
         rowId={(r) => r.id}
@@ -64,7 +64,7 @@ export function ObservationsTable({
         emptyMessage="No observations yet. Observations are added in field reports."
         rowActions={(r) =>
           r.latestReportId
-            ? [{ label: "Go to Report", icon: FileText, onSelect: () => router.push(`/projects/${projectId}/reports/${r.latestReportId}?obs=${r.id}`) }]
+            ? [{ label: "Go to most recent report", icon: FileText, onSelect: () => router.push(`/projects/${projectId}/reports/${r.latestReportId}?obs=${r.id}`) }]
             : []
         }
       />

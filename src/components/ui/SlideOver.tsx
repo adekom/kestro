@@ -40,7 +40,7 @@ export function SlideOver({
       }`}
     >
       <div className="flex items-center gap-2 border-b border-border px-5 py-4">
-        <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>
+        <h2 className="field-inset min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>
         {actions}
         <button type="button" className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text" onClick={onClose} aria-label="Close panel">
           <X className="h-5 w-5" aria-hidden />

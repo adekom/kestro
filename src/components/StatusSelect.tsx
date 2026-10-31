@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import type { StatusDef } from "@/lib/types";
 
 function Dot({ color }: { color?: string }) {
@@ -25,6 +25,7 @@ export function StatusSelect({
   onChange,
   resolvedStatusId,
   disabled = false,
+  inline = false,
 }: {
   id: string;
   statuses: StatusDef[];
@@ -32,6 +33,8 @@ export function StatusSelect({
   onChange: (statusId: string) => void;
   resolvedStatusId?: string;
   disabled?: boolean;
+  /** Click-to-edit look: plain text until clicked (dashed outline and pencil on hover). */
+  inline?: boolean;
 }) {
   const listId = useId();
   const [open, setOpen] = useState(false);
@@ -74,7 +77,11 @@ export function StatusSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        className="input flex items-center gap-2 text-left disabled:opacity-50"
+        className={
+          inline && !open
+            ? "group relative flex min-h-[38px] w-full items-center gap-2 rounded-md border border-transparent px-3 py-2 pr-8 text-left text-sm hover:border-dashed hover:border-text-muted/60 focus-visible:border-dashed focus-visible:border-text-muted/60 disabled:opacity-50"
+            : "input flex items-center gap-2 text-left disabled:opacity-50"
+        }
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
           if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
@@ -85,7 +92,11 @@ export function StatusSelect({
       >
         <Dot color={current?.color} />
         <span className="flex-1 truncate">{current ? label(current) : "No status"}</span>
-        <ChevronDown aria-hidden className="h-4 w-4 text-text-muted" />
+        {inline && !open ? (
+          <Pencil aria-hidden className="absolute top-1.5 right-1.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        ) : (
+          <ChevronDown aria-hidden className="h-4 w-4 text-text-muted" />
+        )}
       </button>
       {open && (
         <ul
