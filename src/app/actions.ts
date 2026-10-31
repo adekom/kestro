@@ -9,6 +9,7 @@ import { db } from "@/server/firebaseAdmin";
 import { toResult } from "@/server/errors";
 import * as projects from "@/server/services/projects";
 import * as reports from "@/server/services/reports";
+import * as reportDeletion from "@/server/services/reportDeletion";
 import * as observations from "@/server/services/observations";
 import * as photos from "@/server/services/photos";
 import * as settings from "@/server/services/settings";
@@ -151,6 +152,22 @@ export async function reorderMembershipsAction(pid: string, rid: string, ordered
     await requireUser();
     await reports.reorderMemberships(pid, rid, orderedIds);
     revalidatePath(reportPath(pid, rid), "layout");
+  });
+}
+
+export async function previewReportDeletionAction(pid: string, rids: string[]) {
+  return toResult(async () => {
+    await requireUser();
+    return reportDeletion.previewReportDeletion(pid, rids);
+  });
+}
+
+/** Editors and admins may delete field reports (spec: recoverable only from backups). */
+export async function deleteReportsAction(pid: string, rids: string[]) {
+  return toResult(async () => {
+    const user = await requireUser();
+    await reportDeletion.deleteReports(pid, rids, user.email);
+    revalidatePath(`/projects/${pid}`, "layout");
   });
 }
 

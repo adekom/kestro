@@ -3,6 +3,7 @@ import { getContactsByIds } from "./contacts";
 import { listProjectObservations } from "./observations";
 import { getProject } from "./projects";
 import { getStatusEvents, reportSequenceMap } from "./reports";
+import { deletedReportIds } from "./reportDeletion";
 import { observationNumber, statusOn } from "@/lib/domain";
 import type { Contact } from "@/lib/types";
 
@@ -18,13 +19,13 @@ export interface ObservationRow {
 
 /** Every live observation in the project with its current (latest) status. */
 export async function observationRows(pid: string): Promise<ObservationRow[]> {
-  const [observations, seqMap] = await Promise.all([listProjectObservations(pid), reportSequenceMap(pid)]);
+  const [observations, seqMap, hidden] = await Promise.all([listProjectObservations(pid), reportSequenceMap(pid), deletedReportIds(pid)]);
   return Promise.all(
     observations.map(async (o) => ({
       id: o.id,
       number: observationNumber(o, seqMap),
       title: o.title,
-      statusId: statusOn(await getStatusEvents(pid, o.id), "9999-12-31"),
+      statusId: statusOn(await getStatusEvents(pid, o.id, hidden), "9999-12-31"),
       groupId: o.groupId,
       originalDate: o.originalDate,
     })),

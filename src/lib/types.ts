@@ -128,7 +128,14 @@ export interface Report {
   nextLocalSeq: number;
   /** Report this one was created from, if any. */
   sourceReportId: string | null;
+  /**
+   * Deleted reports are kept for the record (not restorable in the app). Their
+   * visit's updates, status changes and photos are hidden everywhere.
+   */
   deletedAt: IsoTimestamp | null;
+  deletedBy?: string | null;
+  /** The display number the report had when it was deleted. */
+  deletedSequence?: number | null;
   version: number;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
@@ -151,6 +158,8 @@ export interface Observation {
   originalDate: IsoDate;
   groupId: string | null;
   deletedAt: IsoTimestamp | null;
+  /** Set when the observation was removed because its only report was deleted. */
+  deletedWithReportId?: string | null;
   version: number;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;

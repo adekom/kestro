@@ -37,8 +37,8 @@ See [docs/development.md](docs/development.md) for the first-admin setup, tests 
 | Milestone | State |
 | --- | --- |
 | M1 Foundation — scaffold, emulator, bootstrap, allowlist, rule/role tests | Implemented |
-| M2 Report editor — projects, reports, contacts, settings, autosave, statuses | Implemented (drag reorder uses ↑/↓ controls) |
-| M3 History / numbering — carry-forward done; **report deletion + renumbering pending** | In progress |
+| M2 Report editor — projects, reports, contacts, settings, autosave, statuses | Implemented |
+| M3 History / numbering — carry-forward, report deletion with gap-free renumbering | Implemented |
 | M4 Photos / markup — upload, library, captions, public viewer done; **markup editor pending** | In progress |
 | M5 PDF — template, linked thumbnails, pagination, preview = export | Implemented (annotated thumbnails follow M4) |
 | M6 Migration / backup | Not started |

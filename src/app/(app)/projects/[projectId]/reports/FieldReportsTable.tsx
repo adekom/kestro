@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { formatLongDate } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 import { NewReportForm } from "./NewReportForm";
+import { DeleteReportsDialog } from "./DeleteReportsDialog";
 
 interface ReportRow {
   id: string;
@@ -37,6 +39,7 @@ export function FieldReportsTable({
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<string[] | null>(null);
   return (
     <>
       <DataTable
@@ -50,6 +53,18 @@ export function FieldReportsTable({
         onRowClick={(r) => router.push(`/projects/${projectId}/reports/${r.id}`)}
         initialSort={{ id: "number", dir: "desc" }}
         emptyMessage="No field reports yet."
+        selectionActions={(selected) => (
+          <button type="button" className="btn btn-danger" onClick={() => setDeleting(selected.map((r) => r.id))}>
+            <Trash2 className="h-4 w-4" aria-hidden /> Delete
+          </button>
+        )}
+        rowActions={(r) => [{ label: "Delete report", icon: Trash2, danger: true, onSelect: () => setDeleting([r.id]) }]}
+      />
+      <DeleteReportsDialog
+        projectId={projectId}
+        reportIds={deleting}
+        onClose={() => setDeleting(null)}
+        onDeleted={() => router.refresh()}
       />
       <Modal open={creating} onClose={() => setCreating(false)} title={`Create ${newReport.nextLabel}`} width="max-w-4xl">
         <NewReportForm

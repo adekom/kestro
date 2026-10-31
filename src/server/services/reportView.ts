@@ -4,6 +4,7 @@ import { UserError } from "../errors";
 import { getMemberships, getReport, getStatusEvents, listReports, reportSequenceMap } from "./reports";
 import { getProject } from "./projects";
 import { getSettings } from "./settings";
+import { deletedReportIds } from "./reportDeletion";
 import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn } from "@/lib/domain";
 import type {
   Observation,
@@ -41,16 +42,17 @@ export interface ReportView {
  * The editor and the PDF both use this, so preview matches export.
  */
 export async function buildReportView(pid: string, rid: string): Promise<ReportView> {
-  const [settings, project, report, memberships, seqMap] = await Promise.all([
+  const [settings, project, report, memberships, seqMap, hidden] = await Promise.all([
     getSettings(),
     getProject(pid),
     getReport(pid, rid),
     getMemberships(pid, rid),
     reportSequenceMap(pid),
+    deletedReportIds(pid),
   ]);
 
   const observations = await Promise.all(
-    memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, m.order)),
+    memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, hidden, m.order)),
   );
 
   return {
@@ -63,30 +65,32 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
 
 /**
  * One observation as of a report's visit: status, updates and photos dated on
- * or before the visit (or recorded in that report). Null if it was deleted.
+ * or before the visit (or recorded in that report), excluding anything
+ * recorded in deleted reports (`hidden`). Null if it was deleted.
  */
 export async function observationAsOfReport(
   pid: string,
   oid: string,
   report: Report,
   seqMap: Map<string, number>,
+  hidden: ReadonlySet<string>,
   order = 0,
 ): Promise<ObservationInReport | null> {
   const snap = await observationDoc(pid, oid).get();
   const observation = snap.data() as Observation | undefined;
   if (!observation || observation.deletedAt) return null;
   const [events, updatesSnap, attachmentsSnap] = await Promise.all([
-    getStatusEvents(pid, oid),
+    getStatusEvents(pid, oid, hidden),
     updatesCol(pid, oid).get(),
     attachmentsCol(pid).where("observationId", "==", oid).get(),
   ]);
   const statusEvents = sortStatusEvents(applicableToReport(events, report));
   const updates = applicableToReport(
-    updatesSnap.docs.map((d) => d.data() as ObservationUpdate),
+    updatesSnap.docs.map((d) => d.data() as ObservationUpdate).filter((u) => !hidden.has(u.reportId)),
     report,
   ).sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
   const attachments = applicableToReport(
-    attachmentsSnap.docs.map((d) => d.data() as PhotoAttachment).filter((a) => !a.detachedAt),
+    attachmentsSnap.docs.map((d) => d.data() as PhotoAttachment).filter((a) => !a.detachedAt && !hidden.has(a.reportId)),
     report,
   ).sort((a, b) => a.order - b.order);
   const photos = await Promise.all(attachments.map((a) => photosCol(pid).doc(a.photoId).get()));
@@ -116,14 +120,20 @@ export interface ObservationDetail {
  * to the most recent report that includes the observation.
  */
 export async function getObservationDetail(pid: string, oid: string, rid: string | null): Promise<ObservationDetail> {
-  const [settings, project, reports, seqMap] = await Promise.all([getSettings(), getProject(pid), listReports(pid), reportSequenceMap(pid)]);
+  const [settings, project, reports, seqMap, hidden] = await Promise.all([
+    getSettings(),
+    getProject(pid),
+    listReports(pid),
+    reportSequenceMap(pid),
+    deletedReportIds(pid),
+  ]);
   let report = rid ? reports.find((r) => r.id === rid) : undefined;
   if (!report) {
     const memberOf = await Promise.all(reports.map(async (r) => ((await membershipsCol(pid, r.id).doc(oid).get()).exists ? r : null)));
     report = memberOf.filter((r): r is Report => r !== null).at(-1);
   }
   if (!report) throw new UserError("This observation isn't in any report.");
-  const item = await observationAsOfReport(pid, oid, report, seqMap);
+  const item = await observationAsOfReport(pid, oid, report, seqMap, hidden);
   if (!item) throw new UserError("Observation not found.");
   return {
     item,

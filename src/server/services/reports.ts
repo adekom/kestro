@@ -13,6 +13,7 @@ import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { isIsoDate, observationNumber, preselectForCarryForward, statusOn } from "@/lib/domain";
 import type { Attendee, Membership, Observation, Project, Report, StatusEvent, SummaryOverride } from "@/lib/types";
+import { deletedReportIds } from "./reportDeletion";
 
 const MAX_MEMBERSHIPS_PER_CREATE = 400; // stays well inside Firestore's 500-write transaction limit
 // Simultaneous report creation in one project contends on the same documents;
@@ -41,9 +42,12 @@ export async function getMemberships(pid: string, rid: string): Promise<Membersh
   return snap.docs.map((d) => d.data() as Membership);
 }
 
-export async function getStatusEvents(pid: string, oid: string): Promise<StatusEvent[]> {
+const NONE: ReadonlySet<string> = new Set();
+
+/** Status history, without events recorded in deleted reports (`hidden`). */
+export async function getStatusEvents(pid: string, oid: string, hidden: ReadonlySet<string> = NONE): Promise<StatusEvent[]> {
   const snap = await statusEventsCol(pid, oid).get();
-  return snap.docs.map((d) => d.data() as StatusEvent);
+  return snap.docs.map((d) => d.data() as StatusEvent).filter((e) => !e.reportId || !hidden.has(e.reportId));
 }
 
 export interface ReportSummary {
@@ -55,11 +59,11 @@ export interface ReportSummary {
 /** Reports for the project page, each with its observations counted by status. */
 export async function reportSummaries(pid: string): Promise<ReportSummary[]> {
   const reports = await listReports(pid);
-  const memberships = await Promise.all(reports.map((r) => getMemberships(pid, r.id)));
+  const [memberships, hidden] = await Promise.all([Promise.all(reports.map((r) => getMemberships(pid, r.id))), deletedReportIds(pid)]);
   const observationIds = [...new Set(memberships.flat().map((m) => m.observationId))];
   const [obsSnaps, events] = await Promise.all([
     observationIds.length ? db().getAll(...observationIds.map((id) => observationsCol(pid).doc(id))) : [],
-    Promise.all(observationIds.map((id) => getStatusEvents(pid, id))),
+    Promise.all(observationIds.map((id) => getStatusEvents(pid, id, hidden))),
   ]);
   const live = new Set(obsSnaps.filter((s) => s.exists && !(s.data() as Observation).deletedAt).map((s) => s.id));
   const eventsById = new Map(observationIds.map((id, i) => [id, events[i]]));
@@ -92,15 +96,16 @@ export async function carryForwardCandidates(
   sourceRid: string,
   resolvedStatusId: string,
 ): Promise<{ fromSource: CarryForwardCandidate[]; older: CarryForwardCandidate[] }> {
-  const [source, memberships, seqMap, obsSnap] = await Promise.all([
+  const [source, memberships, seqMap, obsSnap, hidden] = await Promise.all([
     getReport(pid, sourceRid),
     getMemberships(pid, sourceRid),
     reportSequenceMap(pid),
     observationsCol(pid).where("deletedAt", "==", null).get(),
+    deletedReportIds(pid),
   ]);
   const observations = new Map(obsSnap.docs.map((d) => [d.id, d.data() as Observation]));
   const toCandidate = async (o: Observation, inSource: boolean): Promise<CarryForwardCandidate> => {
-    const events = await getStatusEvents(pid, o.id);
+    const events = await getStatusEvents(pid, o.id, hidden);
     return {
       observationId: o.id,
       number: observationNumber(o, seqMap),

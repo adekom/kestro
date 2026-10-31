@@ -67,6 +67,13 @@ tests/emulator/        integration tests against the Emulator Suite
   reports, so concurrent creation retries instead of producing duplicate numbers.
 - **History is date-scoped.** Status events, updates and photo attachments carry the visit date of the report they
   were recorded in. A report shows only items dated on or before its visit (`lib/domain.ts → applicableToReport`).
+- **Report deletion** (`server/services/reportDeletion.ts`, planner in `lib/reportDeletion.ts`) runs in one
+  Firestore transaction: deleted reports are marked deleted (kept for the record; no restore in the app), later
+  reports are renumbered without gaps, and the project's report count is updated. Observations that started in a
+  deleted report move to the earliest remaining report that includes them (re-dated to that visit, keeping their
+  latest status); those found only in deleted reports are removed with them. Updates, status changes and photos
+  recorded during a deleted visit are hidden everywhere (`deletedReportIds`). The confirmation preview uses the
+  same planner, so it shows exactly what will change. Previously exported PDFs keep their old numbers.
 - **Concurrent edits** to report information and observations are detected with a version counter; a stale save is
   rejected and the editor asks the user to reload instead of overwriting.
 - **Photo detach** hides an attachment without deleting files, and its public link keeps working because it may
