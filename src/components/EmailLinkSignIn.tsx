@@ -10,7 +10,27 @@ import {
   sendMagicLink,
 } from "@/lib/firebaseClient";
 
-type Phase = "enter-email" | "sent" | "confirm-email" | "working" | "signed-in";
+// Per-tab record of the sign-in link this tab has already used (sessionStorage
+// survives a second page load in the same tab, unlike component state).
+const HANDLED_KEY = "kestro.handledSignInLink";
+const linkCode = () => new URL(window.location.href).searchParams.get("oobCode");
+function handledLinkCode(): string | null {
+  try {
+    return window.sessionStorage.getItem(HANDLED_KEY);
+  } catch {
+    return null;
+  }
+}
+function markLinkHandled(code: string | null) {
+  try {
+    if (code) window.sessionStorage.setItem(HANDLED_KEY, code);
+    else window.sessionStorage.removeItem(HANDLED_KEY);
+  } catch {
+    // Without storage the guard simply doesn't apply.
+  }
+}
+
+type Phase ="enter-email" | "sent" | "confirm-email" | "working" | "signed-in";
 
 /**
  * Email-link sign-in. Calls `onToken` with a fresh ID token once the link is
@@ -37,6 +57,15 @@ export function EmailLinkSignIn({
 
   useEffect(() => {
     if (!isMagicLink()) return;
+    // The page can load a second time while the first load is still completing
+    // this link (and has already used it). Wait for that instead of asking again;
+    // if it doesn't navigate away, reload the plain page, where the server
+    // forwards signed-in users onwards.
+    if (handledLinkCode() === linkCode()) {
+      setPhase("working");
+      const t = setTimeout(() => window.location.assign(returnPath), 4000);
+      return () => clearTimeout(t);
+    }
     const remembered = rememberedEmail();
     if (remembered && autoFinish) return void finish(remembered);
     setEmail(remembered ?? "");
@@ -49,6 +78,7 @@ export function EmailLinkSignIn({
     linkUsed.current = true;
     setPhase("working");
     setError(null);
+    markLinkHandled(linkCode());
     try {
       const token = await completeMagicLink(address);
       // The link is now spent; drop it from the address bar so a reload can't retry it.
@@ -66,6 +96,7 @@ export function EmailLinkSignIn({
       // A mistyped email doesn't consume the link, so let the user try again.
       const retryable = (e as { code?: string })?.code === "auth/invalid-email";
       linkUsed.current = !retryable;
+      if (retryable) markLinkHandled(null);
       setPhase(retryable ? "confirm-email" : "enter-email");
     }
   }
