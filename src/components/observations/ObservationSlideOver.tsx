@@ -189,7 +189,7 @@ function ObservationEditor({
       </section>
 
       <section aria-labelledby="history-heading" className="space-y-3">
-        <h3 id="history-heading" className="text-sm font-semibold">History</h3>
+        <h3 id="history-heading" className="field-inset text-sm font-semibold">History</h3>
         <ol>
           <TimelineEntry
             date={o.originalDate}

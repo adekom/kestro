@@ -31,8 +31,8 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
 
   return (
     <section className="card p-4">
-      <h2 className="mb-1 text-sm font-semibold">Observation statuses</h2>
-      <p className="mb-3 text-xs text-text-muted">
+      <h2 className="field-inset mb-1 text-sm font-semibold">Observation statuses</h2>
+      <p className="field-inset mb-3 text-xs text-text-muted">
         Renaming or recoloring keeps all history. The resolved status is excluded by default when carrying observations into
         the next report. A status in use cannot be removed.
       </p>

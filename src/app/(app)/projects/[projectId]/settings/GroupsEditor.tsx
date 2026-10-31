@@ -25,8 +25,8 @@ export function GroupsEditor({ projectId, groups }: { projectId: string; groups:
 
   return (
     <section className="card p-4" aria-labelledby="groups-heading">
-      <h2 id="groups-heading" className="mb-1 text-sm font-semibold">Observation groups (optional)</h2>
-      <p className="mb-3 text-xs text-text-muted">Groups only affect presentation. Reports without groups work normally.</p>
+      <h2 id="groups-heading" className="field-inset mb-1 text-sm font-semibold">Observation groups (optional)</h2>
+      <p className="field-inset mb-3 text-xs text-text-muted">Groups only affect presentation. Reports without groups work normally.</p>
       <ul className="space-y-2">
         {items.map((g, i) => (
           <li key={g.key} className="flex gap-2">

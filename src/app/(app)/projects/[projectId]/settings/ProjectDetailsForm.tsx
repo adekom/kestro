@@ -37,7 +37,7 @@ function Form({ project }: { project: Project }) {
   return (
     <section className="card space-y-3 p-4" aria-labelledby="details-heading">
       <div className="flex items-center justify-between">
-        <h2 id="details-heading" className="text-sm font-semibold">Project details</h2>
+        <h2 id="details-heading" className="field-inset text-sm font-semibold">Project details</h2>
         <SaveIndicator />
       </div>
       {field("name", "Name")}

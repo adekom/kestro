@@ -68,7 +68,7 @@ export function PhotoAttachments({
 
   return (
     <section aria-labelledby="photos-heading">
-      <h3 id="photos-heading" className="mb-2 text-sm font-semibold">Photos</h3>
+      <h3 id="photos-heading" className="field-inset mb-2 text-sm font-semibold">Photos</h3>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
         {item.attachments.map((a, i) => (
           <AttachmentCard

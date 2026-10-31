@@ -54,8 +54,13 @@ body {
   .input {
     @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary aria-invalid:border-danger;
   }
+  /* Aligns headings and labels with the text inside fields (12px padding + 1px border). */
+  .field-inset {
+    padding-left: 13px;
+  }
   .label {
     @apply mb-1.5 block text-xs font-medium text-text-muted;
+    padding-left: 13px; /* same as .field-inset */
   }
   .card {
     @apply rounded-lg border border-border bg-surface;

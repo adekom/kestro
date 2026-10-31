@@ -10,7 +10,7 @@ export function LogoUpload({ hasLogo }: { hasLogo: boolean }) {
 
   return (
     <section className="card space-y-3 p-4">
-      <h2 className="text-sm font-semibold">Report header logo</h2>
+      <h2 className="field-inset text-sm font-semibold">Report header logo</h2>
       {hasLogo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={`/api/settings/logo?t=${stamp}`} alt="Current logo" className="max-h-16 max-w-xs" />

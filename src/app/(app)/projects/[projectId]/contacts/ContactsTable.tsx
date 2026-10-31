@@ -192,7 +192,7 @@ function ContactEditor({
   return (
     <div className="space-y-6">
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">On this project</h3>
+        <h3 className="field-inset text-sm font-semibold">On this project</h3>
         <div>
           <label className="label" htmlFor="project-role">Role</label>
           <InlineText
@@ -211,8 +211,8 @@ function ContactEditor({
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Contact details</h3>
-        <p className="text-xs text-text-muted">These details are shared by every project this person is on.</p>
+        <h3 className="field-inset text-sm font-semibold">Contact details</h3>
+        <p className="field-inset text-xs text-text-muted">These details are shared by every project this person is on.</p>
         <ContactDetailsEditor contact={row.contact} onSaved={onChanged} />
       </section>
 

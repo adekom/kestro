@@ -43,7 +43,7 @@ export function NewProjectForm({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold">Details</h3>
+        <h3 className="field-inset text-sm font-semibold">Details</h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">{field("name", "Name", true)}</div>
           {field("code", "Project number")}
@@ -58,8 +58,8 @@ export function NewProjectForm({
 
       <section className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold">Contacts</h3>
-          <p className="text-xs text-text-muted">Choose people from the firm contact list, including staff. New contacts are added to the firm list.</p>
+          <h3 className="field-inset text-sm font-semibold">Contacts</h3>
+          <p className="field-inset text-xs text-text-muted">Choose people from the firm contact list, including staff. New contacts are added to the firm list.</p>
         </div>
         <ContactPicker contacts={contacts} selected={selected} onChange={setSelected} />
       </section>

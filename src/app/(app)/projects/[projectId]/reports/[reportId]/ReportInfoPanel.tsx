@@ -16,9 +16,9 @@ export function Card({ title, titleFor, actions, children }: { title: string; ti
     <section className="card">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         {titleFor ? (
-          <label htmlFor={titleFor} className="mr-auto text-sm font-semibold">{title}</label>
+          <label htmlFor={titleFor} className="field-inset mr-auto text-sm font-semibold">{title}</label>
         ) : (
-          <h2 className="mr-auto text-sm font-semibold">{title}</h2>
+          <h2 className="field-inset mr-auto text-sm font-semibold">{title}</h2>
         )}
         {actions}
       </div>
@@ -102,7 +102,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
 
       <Card title="Contacts present">
         {info.attendees.length === 0 ? (
-          <p className="text-sm text-text-muted">No contacts listed for this visit.</p>
+          <p className="field-inset text-sm text-text-muted">No contacts listed for this visit.</p>
         ) : (
           <table className="w-full table-fixed text-sm">
             <colgroup>
@@ -114,7 +114,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
             </colgroup>
             <thead className="text-left text-xs font-semibold text-text-muted">
               <tr className="border-b-2 border-border">
-                <th className="px-3 py-2.5">Present</th>
+                <th className="field-inset py-2.5 pr-3">Present</th>
                 <th className="px-3 py-2.5">Name</th>
                 <th className="px-3 py-2.5">Company</th>
                 <th className="px-3 py-2.5">Role</th>
@@ -126,7 +126,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
                 const s = shown(a);
                 return (
                   <tr key={a.id} className="border-b border-border">
-                    <td className="px-3 py-3">
+                    <td className="field-inset py-3 pr-3">
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-primary"
