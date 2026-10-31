@@ -4,6 +4,7 @@ import { membershipsCol, observationDoc, observationsCol, reportDoc, statusEvent
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { getSettings } from "./settings";
+import { renumberReport } from "./reportOrder";
 import { isIsoDate } from "@/lib/domain";
 import type { Membership, Observation, ObservationUpdate, Report, StatusEvent } from "@/lib/types";
 
@@ -69,6 +70,7 @@ export async function createObservation(pid: string, rid: string, input: NewObse
     tx.create(statusEventsCol(pid, oid).doc(event.id), event);
     tx.create(membershipsCol(pid, rid).doc(oid), membership);
   });
+  await renumberReport(pid, rid);
   return oid;
 }
 
@@ -94,11 +96,13 @@ export async function updateObservation(
     title: patch.title?.slice(0, 300),
     description: patch.description?.slice(0, 20000),
   };
-  return db().runTransaction(async (tx) => {
+  let regroupedIn: string | null = null;
+  const version = await db().runTransaction(async (tx) => {
     const ref = observationDoc(pid, oid);
     const obs = (await tx.get(ref)).data() as Observation | undefined;
     if (!obs || obs.deletedAt) throw new UserError("Observation not found.");
     if (obs.version !== expectedVersion) throw new ConflictError();
+    if (clean.groupId !== undefined && (clean.groupId ?? null) !== (obs.groupId ?? null)) regroupedIn = obs.originReportId;
     const touchesOriginal = clean.title !== undefined || clean.description !== undefined || clean.originalDate !== undefined;
     if (touchesOriginal && obs.originReportId !== inReportId) {
       throw new UserError("The original observation can only be edited in the report where it was created. Add an update instead.");
@@ -106,6 +110,8 @@ export async function updateObservation(
     tx.update(ref, { ...clean, version: obs.version + 1, updatedAt: now() });
     return obs.version + 1;
   });
+  if (regroupedIn) await renumberReport(pid, regroupedIn);
+  return version;
 }
 
 /**
@@ -168,7 +174,9 @@ export async function deleteUpdate(pid: string, oid: string, updateId: string): 
  * soft-deleted: history, photos and public links are retained for recovery.
  */
 export async function deleteObservation(pid: string, oid: string): Promise<void> {
+  const obs = (await observationDoc(pid, oid).get()).data() as Observation | undefined;
   await observationDoc(pid, oid).update({ deletedAt: now(), updatedAt: now() });
+  if (obs) await renumberReport(pid, obs.originReportId);
 }
 
 export async function listProjectObservations(pid: string): Promise<Observation[]> {

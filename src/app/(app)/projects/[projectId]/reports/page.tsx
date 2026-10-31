@@ -20,7 +20,7 @@ export default async function FieldReportsPage({ params }: { params: Promise<{ p
     sequence: r.sequence,
     label: reportLabel(project.reportPrefix, r.sequence),
     observationCount: Object.values(statusCounts).reduce((a, b) => a + b, 0),
-    createdAt: r.createdAt,
+    visitDate: r.visitDate,
     author: r.authorName,
   }));
   const sources = [...summaries].reverse().map(({ report: r }) => ({

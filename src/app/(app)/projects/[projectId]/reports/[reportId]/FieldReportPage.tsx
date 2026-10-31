@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CornerDownRight, Download, Eye, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Download, Eye, Plus } from "lucide-react";
+import { moveObservationAction } from "@/app/actions";
+import { moveTarget } from "@/lib/reportOrder";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SaveIndicator, SaveStatusProvider } from "@/components/autosave";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
-import { CarryForwardPicker, type Candidate } from "@/components/observations/CarryForwardPicker";
 import { NewObservationForm } from "@/components/observations/NewObservationForm";
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
 import { photoUrl } from "@/components/observations/PhotoAttachments";
@@ -24,16 +25,17 @@ import { Card, ReportInfoPanel } from "./ReportInfoPanel";
 export function FieldReportPage({
   view,
   contacts,
-  candidates,
+  initialOpenId = null,
 }: {
   view: ReportView;
   contacts: Contact[];
-  candidates: Candidate[];
+  /** Observation whose panel opens on arrival (from "Go to Report"). */
+  initialOpenId?: string | null;
 }) {
   const router = useRouter();
   const { project, report, settings } = view;
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [modal, setModal] = useState<"new" | "carry" | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId);
+  const [modal, setModal] = useState<"new" | null>(null);
   const statusById = useMemo(() => new Map(settings.statuses.map((s) => [s.id, s])), [settings.statuses]);
   const groups = useMemo(() => [...project.groups].sort((a, b) => a.order - b.order), [project.groups]);
   const pdfUrl = `/api/projects/${project.id}/reports/${report.id}/pdf`;
@@ -42,6 +44,28 @@ export function FieldReportPage({
   const afterChange = () => {
     setModal(null);
     router.refresh();
+  };
+
+  // Up/down for this report's own observations, never past earlier reports' ones.
+  const orderItems = view.observations.map((o) => ({
+    observationId: o.observation.id,
+    originReportId: o.observation.originReportId,
+    originLocalSeq: o.observation.originLocalSeq,
+    originSequence: 0,
+    groupId: o.observation.groupId ?? null,
+    order: o.order,
+  }));
+  const moveControls = (o: ObservationInReport) => {
+    if (project.archived || o.observation.originReportId !== report.id) return undefined;
+    const go = (direction: -1 | 1) =>
+      moveTarget(orderItems, report.id, o.observation.id, direction)
+        ? async () => {
+            const res = await moveObservationAction(project.id, report.id, o.observation.id, direction);
+            if (res.ok) router.refresh();
+            else window.alert(res.error);
+          }
+        : null;
+    return { up: go(-1), down: go(1) };
   };
 
   // Group headings follow the PDF; reports without groups list observations plainly.
@@ -86,9 +110,6 @@ export function FieldReportPage({
             actions={
               !project.archived && (
                 <>
-                  <button type="button" className="btn" onClick={() => setModal("carry")} disabled={candidates.length === 0}>
-                    <CornerDownRight className="h-4 w-4" aria-hidden /> Carry forward
-                  </button>
                   <button type="button" className="btn btn-primary" onClick={() => setModal("new")}>
                     <Plus className="h-4 w-4" aria-hidden /> Add observation
                   </button>
@@ -112,6 +133,7 @@ export function FieldReportPage({
                         status={statusById.get(o.statusId ?? "")}
                         active={openId === o.observation.id}
                         onOpen={() => setOpenId((id) => (id === o.observation.id ? null : o.observation.id))}
+                        move={moveControls(o)}
                       />
                     ))}
                   </div>
@@ -133,16 +155,6 @@ export function FieldReportPage({
           onCreated={afterChange}
         />
       </Modal>
-      <Modal open={modal === "carry"} onClose={closeModal} title={`Carry observations into ${title}`} width="max-w-3xl">
-        <CarryForwardPicker
-          projectId={project.id}
-          reportId={report.id}
-          candidates={candidates}
-          statuses={settings.statuses}
-          onCancel={closeModal}
-          onAdded={afterChange}
-        />
-      </Modal>
       <ObservationSlideOver projectId={project.id} observationId={openId} reportId={report.id} onClose={() => setOpenId(null)} />
     </SaveStatusProvider>
   );
@@ -155,6 +167,7 @@ function ObservationCard({
   status,
   active,
   onOpen,
+  move,
 }: {
   projectId: string;
   item: ObservationInReport;
@@ -162,13 +175,43 @@ function ObservationCard({
   status: Parameters<typeof StatusBadge>[0]["status"];
   active: boolean;
   onOpen: () => void;
+  /** Present only for this report's own observations. */
+  move?: { up: (() => void) | null; down: (() => void) | null };
 }) {
   const o = item.observation;
   return (
+    <div className="flex items-start gap-2">
+      {/* Reserved for every card so numbers line up, own or carried. */}
+      <div className="flex w-7 shrink-0 flex-col items-center gap-0.5 pt-3">
+        {move && (
+          <>
+            <button
+              type="button"
+              className="rounded p-0.5 text-text-muted hover:bg-surface-muted hover:text-text disabled:invisible"
+              disabled={!move.up}
+              onClick={move.up ?? undefined}
+              aria-label={`Move ${item.number} up`}
+              title="Move up"
+            >
+              <ChevronUp className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="rounded p-0.5 text-text-muted hover:bg-surface-muted hover:text-text disabled:invisible"
+              disabled={!move.down}
+              onClick={move.down ?? undefined}
+              aria-label={`Move ${item.number} down`}
+              title="Move down"
+            >
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            </button>
+          </>
+        )}
+      </div>
     <button
       type="button"
       onClick={onOpen}
-      className={`block w-full rounded-md border p-4 text-left transition-colors ${
+      className={`block min-w-0 flex-1 rounded-md border p-4 text-left transition-colors ${
         active ? "border-primary bg-primary-subtle" : "border-border bg-surface hover:border-primary/60"
       }`}
     >
@@ -200,5 +243,6 @@ function ObservationCard({
         </div>
       )}
     </button>
+    </div>
   );
 }

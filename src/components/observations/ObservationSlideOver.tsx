@@ -17,26 +17,30 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { StatusSelect } from "@/components/StatusSelect";
 import { SlideOver } from "@/components/ui/SlideOver";
 import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
-import { Trash2 } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { formatLongDate, statusOn } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 import type { ObservationDetail } from "@/server/services/reportView";
-import { PhotoAttachments } from "./PhotoAttachments";
+import { PhotoAttachments, photoUrl } from "./PhotoAttachments";
+import Link from "next/link";
 
 /**
  * Observation editor sliding in from the right. With `reportId`, status,
  * updates and photos are recorded in that report; otherwise in the most
- * recent report that includes the observation.
+ * recent report that includes the observation. `readOnly` shows it without
+ * any editing (observations are edited in the context of a field report).
  */
 export function ObservationSlideOver({
   projectId,
   observationId,
   reportId = null,
+  readOnly = false,
   onClose,
 }: {
   projectId: string;
   observationId: string | null;
   reportId?: string | null;
+  readOnly?: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -73,7 +77,8 @@ export function ObservationSlideOver({
     >
       {loadError && <p className="text-sm text-danger" role="alert">{loadError}</p>}
       {!current && !loadError && <p className="text-sm text-text-muted">Loading…</p>}
-      {current && (
+      {current && readOnly && <ObservationReadOnly key={current.item.observation.id} projectId={projectId} detail={current} />}
+      {current && !readOnly && (
         <SaveStatusProvider>
           <ObservationEditor
             key={current.item.observation.id}
@@ -272,6 +277,81 @@ function ObservationEditor({
           Delete from project…
         </button>
       </section>
+    </div>
+  );
+}
+
+/** The observation as recorded, with no editing. */
+function ObservationReadOnly({ projectId, detail }: { projectId: string; detail: ObservationDetail }) {
+  const { item, report, statuses, groups } = detail;
+  const o = item.observation;
+  const statusById = new Map(statuses.map((s) => [s.id, s]));
+  const laterDates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
+    .filter((d) => d > o.originalDate)
+    .sort();
+  const fact = (label: string, value: React.ReactNode) => (
+    <div>
+      <div className="label">{label}</div>
+      <div className="field-inset py-2 text-sm">{value}</div>
+    </div>
+  );
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3 rounded-md bg-surface-muted px-3 py-2 text-xs text-text-muted">
+        <span>
+          As of <span className="font-medium text-text">{detail.reportLabel}</span>. Edit observations from their field report.
+        </span>
+        <Link className="btn shrink-0" href={`/projects/${projectId}/reports/${report.id}?obs=${o.id}`}>
+          <FileText className="h-4 w-4" aria-hidden /> Go to Report
+        </Link>
+      </div>
+      <section className="grid grid-cols-2 gap-3">
+        {fact("Status", <StatusBadge status={statusById.get(item.statusId ?? "")} />)}
+        {fact("Group", groups.find((g) => g.id === o.groupId)?.name ?? "None")}
+      </section>
+      <section aria-labelledby="ro-history" className="space-y-3">
+        <h3 id="ro-history" className="field-inset text-sm font-semibold">History</h3>
+        <ol>
+          <TimelineEntry
+            date={o.originalDate}
+            heading="Observation created"
+            status={statusById.get(statusOn(item.statusEvents, o.originalDate) ?? "")}
+            last={laterDates.length === 0}
+          >
+            {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
+          </TimelineEntry>
+          {laterDates.map((date, i) => {
+            const updates = item.updates.filter((u) => u.date === date);
+            return (
+              <TimelineEntry
+                key={date}
+                date={date}
+                heading={updates.length ? "Update" : "Status changed"}
+                status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
+                last={i === laterDates.length - 1}
+              >
+                {updates.map((u) => <p key={u.id} className="whitespace-pre-wrap">{u.text}</p>)}
+              </TimelineEntry>
+            );
+          })}
+        </ol>
+      </section>
+      {item.attachments.length > 0 && (
+        <section aria-labelledby="ro-photos">
+          <h3 id="ro-photos" className="field-inset mb-2 text-sm font-semibold">Photos</h3>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+            {item.attachments.map((a) => (
+              <li key={a.id}>
+                <a href={photoUrl(projectId, a.photoId, "web")} target="_blank" rel="noopener" title="Open full image">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photoUrl(projectId, a.photoId)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded-md object-cover" loading="lazy" />
+                </a>
+                {a.caption && <p className="mt-1 text-xs text-text-muted">{a.caption}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

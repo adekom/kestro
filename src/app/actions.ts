@@ -10,6 +10,7 @@ import { toResult } from "@/server/errors";
 import * as projects from "@/server/services/projects";
 import * as reports from "@/server/services/reports";
 import * as reportDeletion from "@/server/services/reportDeletion";
+import * as reportOrder from "@/server/services/reportOrder";
 import * as observations from "@/server/services/observations";
 import * as photos from "@/server/services/photos";
 import * as settings from "@/server/services/settings";
@@ -192,6 +193,14 @@ export async function updateObservationAction(
   return toResult(async () => {
     await requireUser();
     return observations.updateObservation(pid, oid, patch, version, inReportId);
+  });
+}
+
+export async function moveObservationAction(pid: string, rid: string, oid: string, direction: -1 | 1) {
+  return toResult(async () => {
+    await requireUser();
+    await reportOrder.moveObservation(pid, rid, oid, direction === -1 ? -1 : 1);
+    revalidatePath(`/projects/${pid}`, "layout");
   });
 }
 

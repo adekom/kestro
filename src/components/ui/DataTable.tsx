@@ -38,6 +38,7 @@ export function DataTable<T>({
   storageKey,
   selectionActions,
   rowActions,
+  selectable = true,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -57,6 +58,8 @@ export function DataTable<T>({
   selectionActions?: (selected: T[], clearSelection: () => void) => React.ReactNode;
   /** Items for a three-dot menu in an unlabelled last column. */
   rowActions?: (row: T) => RowAction[];
+  /** Show row checkboxes (and select-all). */
+  selectable?: boolean;
 }) {
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState<Sort>(initialSort);
@@ -162,7 +165,7 @@ export function DataTable<T>({
       <div className="min-h-0 flex-1 overflow-auto">
         <table ref={tableRef} className="w-full table-fixed border-collapse text-sm">
           <colgroup>
-            <col style={{ width: 44 }} />
+            {selectable && <col style={{ width: 44 }} />}
             {columns.map((c, i) => (
               <col key={c.id} style={{ width: `${(shares[i] * 100).toFixed(3)}%` }} />
             ))}
@@ -170,22 +173,24 @@ export function DataTable<T>({
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface text-left text-xs font-semibold text-text-muted">
             <tr className="border-b-2 border-border">
-              <th className="px-4 py-3">
-                <input
-                  type="checkbox"
-                  className="accent-primary"
-                  aria-label="Select all rows"
-                  checked={allChecked}
-                  ref={(el) => {
-                    if (el) el.indeterminate = someChecked && !allChecked;
-                  }}
-                  onChange={() => {
-                    const next = new Set(selected);
-                    visibleIds.forEach((id) => (allChecked ? next.delete(id) : next.add(id)));
-                    setSelected(next);
-                  }}
-                />
-              </th>
+              {selectable && (
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    className="accent-primary"
+                    aria-label="Select all rows"
+                    checked={allChecked}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someChecked && !allChecked;
+                    }}
+                    onChange={() => {
+                      const next = new Set(selected);
+                      visibleIds.forEach((id) => (allChecked ? next.delete(id) : next.add(id)));
+                      setSelected(next);
+                    }}
+                  />
+                </th>
+                )}
               {columns.map((c, i) => {
                 const dir = sort?.id === c.id ? sort.dir : null;
                 return (
@@ -220,7 +225,7 @@ export function DataTable<T>({
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={columns.length + (rowActions ? 2 : 1)} className="px-4 py-10 text-center text-text-muted">
+                <td colSpan={columns.length + (rowActions ? 1 : 0) + (selectable ? 1 : 0)} className="px-4 py-10 text-center text-text-muted">
                   {rows.length ? "No rows match the filter." : emptyMessage}
                 </td>
               </tr>
@@ -237,20 +242,22 @@ export function DataTable<T>({
                     active ? "bg-primary-subtle" : checked ? "bg-primary-subtle/50" : "hover:bg-surface-muted"
                   }`}
                 >
-                  <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      className="accent-primary"
-                      aria-label="Select row"
-                      checked={checked}
-                      onChange={() => {
-                        const next = new Set(selected);
-                        if (checked) next.delete(id);
-                        else next.add(id);
-                        setSelected(next);
-                      }}
-                    />
-                  </td>
+                  {selectable && (
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        aria-label="Select row"
+                        checked={checked}
+                        onChange={() => {
+                          const next = new Set(selected);
+                          if (checked) next.delete(id);
+                          else next.add(id);
+                          setSelected(next);
+                        }}
+                      />
+                    </td>
+                    )}
                   {columns.map((c) => (
                     <td key={c.id} className="truncate px-4 py-3.5">{c.cell(row)}</td>
                   ))}

@@ -38,8 +38,8 @@ describe("observation numbering and carry-forward", () => {
   it("numbers observations by origin report and local sequence", async () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
-    await createObservation(pid, r1, { title: "First", description: "", statusId: "open", groupId: null });
-    await createObservation(pid, r1, { title: "Second", description: "", statusId: "open", groupId: null });
+    await createObservation(pid, r1, { title: "First", description: "", statusId: "nonconforming", groupId: null });
+    await createObservation(pid, r1, { title: "Second", description: "", statusId: "nonconforming", groupId: null });
     const view = await buildReportView(pid, r1);
     expect(view.observations.map((o) => o.number)).toEqual(["1.1", "1.2"]);
   });
@@ -47,7 +47,7 @@ describe("observation numbering and carry-forward", () => {
   it("preselects unresolved observations and excludes resolved ones by default", async () => {
     const pid = await newProject();
     const r16 = await report(pid, "2026-07-14");
-    const open = await createObservation(pid, r16, { title: "Open item", description: "", statusId: "open", groupId: null });
+    const open = await createObservation(pid, r16, { title: "Open item", description: "", statusId: "nonconforming", groupId: null });
     const done = await createObservation(pid, r16, { title: "Done item", description: "", statusId: "resolved", groupId: null });
 
     const { fromSource } = await carryForwardCandidates(pid, r16, "resolved");
@@ -72,14 +72,14 @@ describe("observation numbering and carry-forward", () => {
   it("shows each report only the history effective on its visit date", async () => {
     const pid = await newProject();
     const r16 = await report(pid, "2026-07-14");
-    const oid = await createObservation(pid, r16, { title: "Leak", description: "Water at sill", statusId: "open", groupId: null });
+    const oid = await createObservation(pid, r16, { title: "Leak", description: "Water at sill", statusId: "nonconforming", groupId: null });
     const r17 = await report(pid, "2026-07-28", r16, [oid]);
     await addUpdate(pid, oid, r17, "Sealant applied");
     await setStatusInReport(pid, oid, r17, "resolved");
 
     const old = await buildReportView(pid, r16);
     const cur = await buildReportView(pid, r17);
-    expect(old.observations[0].statusId).toBe("open");
+    expect(old.observations[0].statusId).toBe("nonconforming");
     expect(old.observations[0].updates).toHaveLength(0);
     expect(cur.observations[0].statusId).toBe("resolved");
     expect(cur.observations[0].updates.map((u) => u.text)).toEqual(["Sealant applied"]);
@@ -90,7 +90,7 @@ describe("observation numbering and carry-forward", () => {
   it("does not store the observation twice when carried forward", async () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
-    const oid = await createObservation(pid, r1, { title: "Shared", description: "", statusId: "open", groupId: null });
+    const oid = await createObservation(pid, r1, { title: "Shared", description: "", statusId: "nonconforming", groupId: null });
     await report(pid, "2026-07-28", r1, [oid]);
     const all = await db().collection(`projects/${pid}/observations`).get();
     expect(all.size).toBe(1);
@@ -101,7 +101,7 @@ describe("observation editor data", () => {
   it("records edits in the given report, or else the latest report that includes the observation", async () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
-    const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "open", groupId: null });
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "nonconforming", groupId: null });
     const r2 = await report(pid, "2026-07-28", r1, [oid]);
     await report(pid, "2026-08-11", r2, []); // later report without it
 
@@ -116,7 +116,7 @@ describe("original observation record", () => {
   it("can be edited only in its originating report; later reports add updates", async () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
-    const oid = await createObservation(pid, r1, { title: "Leak", description: "Water at sill", statusId: "open", groupId: null });
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "Water at sill", statusId: "nonconforming", groupId: null });
     const r2 = await report(pid, "2026-07-28", r1, [oid]);
 
     const v2 = await updateObservation(pid, oid, { description: "Water at sill and jamb" }, 1, r1);
@@ -141,25 +141,25 @@ describe("status catalog", () => {
   it("keeps history when a status is renamed and refuses to delete one in use", async () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
-    await createObservation(pid, r1, { title: "A", description: "", statusId: "in-progress", groupId: null });
+    await createObservation(pid, r1, { title: "A", description: "", statusId: "observed", groupId: null });
     const used = async (id: string) =>
       !(await db().collectionGroup("statusEvents").where("statusId", "==", id).limit(1).get()).empty;
 
     await saveStatuses(
       [
-        { id: "open", label: "Open", color: "#C2410C" },
-        { id: "in-progress", label: "Monitoring", color: "#7C3AED" },
+        { id: "nonconforming", label: "Open", color: "#C2410C" },
+        { id: "observed", label: "Monitoring", color: "#7C3AED" },
         { id: "resolved", label: "Closed", color: "#15803D" },
       ],
       2,
       used,
     );
     const view = await buildReportView(pid, r1);
-    expect(view.observations[0].statusId).toBe("in-progress");
-    expect(view.settings.statuses.find((s) => s.id === "in-progress")?.label).toBe("Monitoring");
+    expect(view.observations[0].statusId).toBe("observed");
+    expect(view.settings.statuses.find((s) => s.id === "observed")?.label).toBe("Monitoring");
 
     await expect(
-      saveStatuses([{ id: "open", label: "Open", color: "#C2410C" }, { id: "resolved", label: "Closed", color: "#15803D" }], 1, used),
+      saveStatuses([{ id: "nonconforming", label: "Open", color: "#C2410C" }, { id: "resolved", label: "Closed", color: "#15803D" }], 1, used),
     ).rejects.toThrow(/still used/);
     expect((await getSettings()).statuses).toHaveLength(3);
   });
@@ -169,7 +169,7 @@ describe("photos, public links and PDF", () => {
   async function setup() {
     const pid = await newProject();
     const rid = await report(pid, "2026-07-14");
-    const oid = await createObservation(pid, rid, { title: "Cracked tile", description: "Lobby floor", statusId: "open", groupId: null });
+    const oid = await createObservation(pid, rid, { title: "Cracked tile", description: "Lobby floor", statusId: "nonconforming", groupId: null });
     const png = await sharp({ create: { width: 1200, height: 900, channels: 3, background: "#888888" } }).png().toBuffer();
     const photoId = await uploadPhoto(pid, rid, oid, { name: "IMG_0001.png", bytes: png }, "tester@example.com");
     return { pid, rid, oid, png, photoId };

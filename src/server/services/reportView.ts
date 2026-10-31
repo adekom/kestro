@@ -5,6 +5,7 @@ import { getMemberships, getReport, getStatusEvents, listReports, reportSequence
 import { getProject } from "./projects";
 import { getSettings } from "./settings";
 import { deletedReportIds } from "./reportDeletion";
+import { reportDisplayOrder } from "@/lib/reportOrder";
 import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn } from "@/lib/domain";
 import type {
   Observation,
@@ -55,12 +56,22 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
     memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, hidden, m.order)),
   );
 
-  return {
-    settings,
-    project,
-    report,
-    observations: observations.filter((o): o is ObservationInReport => o !== null),
-  };
+  const live = observations.filter((o): o is ObservationInReport => o !== null);
+  const groupOrder = new Map(project.groups.map((g) => [g.id, g.order]));
+  const ordered = reportDisplayOrder(
+    live.map((o) => ({
+      item: o,
+      observationId: o.observation.id,
+      originReportId: o.observation.originReportId,
+      originLocalSeq: o.observation.originLocalSeq,
+      originSequence: seqMap.get(o.observation.originReportId) ?? 0,
+      groupId: o.observation.groupId ?? null,
+      order: o.order,
+    })),
+    report.id,
+    groupOrder,
+  );
+  return { settings, project, report, observations: ordered.map((x) => x.item) };
 }
 
 /**

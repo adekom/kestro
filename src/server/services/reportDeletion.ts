@@ -1,13 +1,15 @@
 import "server-only";
 import type { Transaction } from "firebase-admin/firestore";
 import { db } from "../firebaseAdmin";
-import { observationsCol, projectDoc, reportDoc, reportsCol, statusEventsCol } from "../paths";
+import { membershipsCol, observationsCol, projectDoc, reportDoc, reportsCol, statusEventsCol } from "../paths";
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { numberChanges, planReportDeletion, type DeletionPlan } from "@/lib/reportDeletion";
 import { reportLabel, sortStatusEvents } from "@/lib/domain";
-import type { Observation, Project, Report, StatusEvent } from "@/lib/types";
+import type { Membership, Observation, Project, Report, StatusEvent } from "@/lib/types";
 import { listProjectObservations } from "./observations";
+import { renumberReport } from "./reportOrder";
+import { ownNumbering, reportDisplayOrder } from "@/lib/reportOrder";
 
 const MAX_DELETE_AT_ONCE = 10;
 const MAX_WRITES = 450; // Firestore allows 500 writes per transaction
@@ -61,6 +63,29 @@ async function loadState(pid: string, rids: string[], tx?: Transaction): Promise
   return { project, live, targets, originating, memberOf, plan };
 }
 
+/** Final local numbers in reports that receive moved observations, as renumberReport will set them. */
+async function simulateRenumbering(pid: string, state: DeletionState, observations: Observation[]): Promise<Map<string, number>> {
+  const { project, plan } = state;
+  const newSeq = new Map(state.live.map((r) => [r.id, r.sequence]));
+  for (const r of plan.renumbered) newSeq.set(r.reportId, r.to);
+  const moved = new Map(plan.reOriginated.map((m) => [m.observationId, m]));
+  const obsById = new Map(observations.map((o) => [o.id, o]));
+  const groupOrder = new Map(project.groups.map((g) => [g.id, g.order]));
+  const out = new Map<string, number>();
+  for (const rid of plan.nextLocalSeq.keys()) {
+    const members = (await membershipsCol(pid, rid).get()).docs.map((d) => d.data() as Membership);
+    const items = members.flatMap((m) => {
+      const o = obsById.get(m.observationId);
+      if (!o) return [];
+      const mv = moved.get(o.id);
+      const origin = mv ? mv.toReportId : o.originReportId;
+      return [{ observationId: o.id, originReportId: origin, originLocalSeq: mv ? mv.localSeq : o.originLocalSeq, originSequence: newSeq.get(origin) ?? 0, groupId: o.groupId ?? null, order: m.order }];
+    });
+    for (const [oid, n] of ownNumbering(reportDisplayOrder(items, rid, groupOrder), rid)) out.set(oid, n);
+  }
+  return out;
+}
+
 export interface DeletionPreview {
   deleting: string[];
   renumbered: Array<{ from: string; to: string }>;
@@ -74,7 +99,7 @@ export async function previewReportDeletion(pid: string, rids: string[]): Promis
   const { project, live, targets, plan } = state;
   const label = (n: number) => reportLabel(project.reportPrefix, n);
   const titleById = new Map(observations.map((o) => [o.id, o.title]));
-  const changes = numberChanges(plan, live, observations);
+  const changes = numberChanges(plan, live, observations, await simulateRenumbering(pid, state, observations));
   return {
     deleting: [...targets].sort((a, b) => a.sequence - b.sequence).map((r) => label(r.sequence)),
     renumbered: plan.renumbered.map((r) => ({ from: label(r.from), to: label(r.to) })),
@@ -95,9 +120,11 @@ export async function previewReportDeletion(pid: string, rids: string[]): Promis
  * latest status); those found only in deleted reports are removed with them.
  */
 export async function deleteReports(pid: string, rids: string[], deletedBy: string): Promise<void> {
+  let receivers: string[] = [];
   await db().runTransaction(
     async (tx) => {
       const { live, targets, originating, plan } = await loadState(pid, rids, tx);
+      receivers = [...plan.nextLocalSeq.keys()];
       const byId = new Map(live.map((r) => [r.id, r]));
       const deleting = new Set(targets.map((r) => r.id));
 
@@ -147,4 +174,6 @@ export async function deleteReports(pid: string, rids: string[], deletedBy: stri
     },
     { maxAttempts: 15 },
   );
+  // Moved observations take their place in the receiving reports' numbering.
+  for (const rid of receivers) await renumberReport(pid, rid);
 }

@@ -14,6 +14,7 @@ import { ConflictError, UserError } from "../errors";
 import { isIsoDate, observationNumber, preselectForCarryForward, statusOn } from "@/lib/domain";
 import type { Attendee, Membership, Observation, Project, Report, StatusEvent, SummaryOverride } from "@/lib/types";
 import { deletedReportIds } from "./reportDeletion";
+import { renumberReport } from "./reportOrder";
 
 const MAX_MEMBERSHIPS_PER_CREATE = 400; // stays well inside Firestore's 500-write transaction limit
 // Simultaneous report creation in one project contends on the same documents;
@@ -293,6 +294,7 @@ export async function addMemberships(pid: string, rid: string, observationIds: s
 /** Removes the observation from this report only; the shared observation is untouched. */
 export async function removeMembership(pid: string, rid: string, oid: string): Promise<void> {
   await membershipsCol(pid, rid).doc(oid).delete();
+  await renumberReport(pid, rid);
 }
 
 export async function reorderMemberships(pid: string, rid: string, orderedIds: string[]): Promise<void> {

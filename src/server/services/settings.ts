@@ -15,9 +15,10 @@ export const DEFAULT_SETTINGS: OrgSettings = {
   showSummaryDefault: true,
   fieldVisibility: { address: true, contact: true, attendance: true, ongoingWork: true, author: true },
   statuses: [
-    { id: "open", label: "Open", color: "#C2410C", order: 0 },
-    { id: "in-progress", label: "In progress", color: "#2563EB", order: 1 },
-    { id: "resolved", label: "Resolved", color: "#15803D", order: 2 },
+    // Pastel tones: soft enough for report pages, distinct as small dots.
+    { id: "nonconforming", label: "Nonconforming", color: "#F2A0A0", order: 0 },
+    { id: "observed", label: "Observed", color: "#C3C9D1", order: 1 },
+    { id: "resolved", label: "Resolved", color: "#9FD3A8", order: 2 },
   ],
   resolvedStatusId: "resolved",
   updatedAt: null,

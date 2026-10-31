@@ -14,7 +14,7 @@ beforeEach(resetEmulators);
 const newProject = (name = "P") => createProject({ name, code: "", address: "", description: "", reportPrefix: "Report " });
 const report = (pid: string, date: string, source: string | null = null, ids: string[] = []) =>
   createReport(pid, { visitDate: date, visitTime: "", authorName: "T", sourceReportId: source, observationIds: ids });
-const obs = (pid: string, rid: string, title: string, statusId = "open") =>
+const obs = (pid: string, rid: string, title: string, statusId = "nonconforming") =>
   createObservation(pid, rid, { title, description: `${title} description`, statusId, groupId: null });
 const numbers = async (pid: string, rid: string) => (await buildReportView(pid, rid)).observations.map((o) => `${o.number} ${o.observation.title}`);
 const sequences = async (pid: string) => (await listReports(pid)).map((r) => r.sequence);
@@ -83,7 +83,7 @@ describe("field report deletion and renumbering", () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
     const r2 = await report(pid, "2026-07-28", r1);
-    const kept = await obs(pid, r2, "Carried", "in-progress"); // 2.1
+    const kept = await obs(pid, r2, "Carried", "observed"); // 2.1
     const lost = await obs(pid, r2, "Only here"); // 2.2
     const r3 = await report(pid, "2026-08-11", r2, [kept]);
     await obs(pid, r3, "Native"); // 3.1
@@ -92,12 +92,13 @@ describe("field report deletion and renumbering", () => {
     expect(preview.removedObservations).toEqual([{ number: "2.2", title: "Only here" }]);
 
     await deleteReports(pid, [r2], "t");
-    // Old report 3 is now 2; the carried observation is numbered after its own (2.1), as 2.2.
-    expect(await numbers(pid, r3)).toEqual(["2.2 Carried", "2.1 Native"]);
+    // Old report 3 is now 2. The moved observation joins its numbering in report order:
+    // it was listed first (carried in at creation), so it becomes 2.1 and Native shifts to 2.2.
+    expect(await numbers(pid, r3)).toEqual(["2.1 Carried", "2.2 Native"]);
     const view = await buildReportView(pid, r3);
     const carried = view.observations.find((o) => o.observation.id === kept)!;
     expect(carried.observation.originalDate).toBe("2026-08-11");
-    expect(carried.statusId).toBe("in-progress"); // keeps its latest status
+    expect(carried.statusId).toBe("observed"); // keeps its latest status
     expect((await observationRows(pid)).map((r) => r.title).sort()).toEqual(["Carried", "Native"]);
     expect(lost).toBeTruthy();
   });
@@ -115,8 +116,8 @@ describe("field report deletion and renumbering", () => {
     await deleteReports(pid, [r2], "t");
     const after = (await buildReportView(pid, r3)).observations[0];
     expect(after.updates).toEqual([]);
-    expect(after.statusId).toBe("open");
-    expect((await observationRows(pid))[0].statusId).toBe("open");
+    expect(after.statusId).toBe("nonconforming");
+    expect((await observationRows(pid))[0].statusId).toBe("nonconforming");
   });
 
   it("stays consistent when reports are created and deleted at the same moment", async () => {

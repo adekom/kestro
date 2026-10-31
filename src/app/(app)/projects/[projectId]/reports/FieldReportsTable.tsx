@@ -15,14 +15,14 @@ interface ReportRow {
   sequence: number;
   label: string;
   observationCount: number;
-  createdAt: string;
+  visitDate: string;
   author: string;
 }
 
 const COLUMNS: Column<ReportRow>[] = [
   { id: "number", header: "Report Number", weight: 2, cell: (r) => <span className="font-medium text-primary">{r.label}</span>, sortValue: (r) => r.sequence },
   { id: "observations", header: "Observations", weight: 1, cell: (r) => r.observationCount, sortValue: (r) => r.observationCount },
-  { id: "created", header: "Date Created", weight: 1.5, cell: (r) => formatLongDate(r.createdAt.slice(0, 10)), sortValue: (r) => r.createdAt },
+  { id: "visit", header: "Visit Date", weight: 1.5, cell: (r) => formatLongDate(r.visitDate), sortValue: (r) => r.visitDate },
   { id: "author", header: "Author", weight: 2, cell: (r) => r.author, sortValue: (r) => r.author },
 ];
 
@@ -43,7 +43,7 @@ export function FieldReportsTable({
   return (
     <>
       <DataTable
-        storageKey="field-reports"
+        storageKey="field-reports-v2"
         rows={rows}
         columns={COLUMNS}
         rowId={(r) => r.id}

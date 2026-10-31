@@ -81,6 +81,8 @@ export function numberChanges(
   plan: DeletionPlan,
   reports: PlanReport[],
   observations: PlanObservation[],
+  /** Final local numbers where reports are renumbered after the move. */
+  localOverride: ReadonlyMap<string, number> = new Map(),
 ): Array<{ observationId: string; from: string; to: string | null }> {
   const oldSeq = new Map(reports.map((r) => [r.id, r.sequence]));
   const newSeq = new Map(oldSeq);
@@ -91,7 +93,9 @@ export function numberChanges(
     const from = `${oldSeq.get(o.originReportId)}.${o.originLocalSeq}`;
     if (removed.has(o.id)) return [{ observationId: o.id, from, to: null }];
     const m = moved.get(o.id);
-    const to = m ? `${newSeq.get(m.toReportId)}.${m.localSeq}` : `${newSeq.get(o.originReportId)}.${o.originLocalSeq}`;
+    const report = m ? m.toReportId : o.originReportId;
+    const local = localOverride.get(o.id) ?? (m ? m.localSeq : o.originLocalSeq);
+    const to = `${newSeq.get(report)}.${local}`;
     return to === from ? [] : [{ observationId: o.id, from, to }];
   });
 }
