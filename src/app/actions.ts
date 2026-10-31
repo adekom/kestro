@@ -162,10 +162,16 @@ export async function createObservationAction(pid: string, rid: string, input: o
   });
 }
 
-export async function updateObservationAction(pid: string, oid: string, patch: observations.ObservationPatch, version: number) {
+export async function updateObservationAction(
+  pid: string,
+  oid: string,
+  patch: observations.ObservationPatch,
+  version: number,
+  inReportId: string,
+) {
   return toResult(async () => {
     await requireUser();
-    return observations.updateObservation(pid, oid, patch, version);
+    return observations.updateObservation(pid, oid, patch, version, inReportId);
   });
 }
 

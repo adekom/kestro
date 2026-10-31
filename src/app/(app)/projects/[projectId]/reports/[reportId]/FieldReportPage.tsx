@@ -58,7 +58,7 @@ export function FieldReportPage({
 
   return (
     <SaveStatusProvider>
-      <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface px-10 py-5">
+      <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface py-5 pr-10 pl-6">
         <div className="min-w-0">
           <Link href={`/projects/${project.id}/reports`} className="link inline-flex items-center gap-1 text-xs">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Field Reports
@@ -113,7 +113,7 @@ export function FieldReportPage({
                         reportId={report.id}
                         status={statusById.get(o.statusId ?? "")}
                         active={openId === o.observation.id}
-                        onOpen={() => setOpenId(o.observation.id)}
+                        onOpen={() => setOpenId((id) => (id === o.observation.id ? null : o.observation.id))}
                       />
                     ))}
                   </div>

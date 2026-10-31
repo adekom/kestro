@@ -182,7 +182,7 @@ export function DataTable<T>({
                   >
                     {c.sortValue ? (
                       <button type="button" className="flex w-full items-center gap-1.5 truncate text-left group-hover:text-text" onClick={() => toggleSort(c.id)}>
-                        <span className="truncate">{c.header}</span>
+                        <span className="min-w-0 flex-1 truncate">{c.header}</span>
                         <SortIcon dir={dir} />
                       </button>
                     ) : (

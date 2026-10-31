@@ -36,7 +36,7 @@ export function ObservationsTable({
 
   const columns = useMemo<Column<ObservationRow>[]>(
     () => [
-      { id: "number", header: "Number", weight: 0.8, cell: (r) => <span className="font-medium">{r.number}</span>, sortValue: (r) => r.number },
+      { id: "number", header: "#", weight: 0.6, cell: (r) => <span className="font-medium">{r.number}</span>, sortValue: (r) => r.number },
       { id: "name", header: "Name", weight: 4, cell: (r) => r.title, sortValue: (r) => r.title },
       {
         id: "status",
@@ -55,14 +55,14 @@ export function ObservationsTable({
   return (
     <>
       <DataTable
-        storageKey="observations"
+        storageKey="observations-v2"
         rows={rows}
         columns={columns}
         rowId={(r) => r.id}
         filterText={(r) => `${r.number} ${r.title} ${statusById.get(r.statusId ?? "")?.label ?? ""} ${groupById.get(r.groupId ?? "")?.name ?? ""}`}
         filterPlaceholder="Filter observations"
         onCreate={archived || reports.length === 0 ? undefined : () => setCreating(true)}
-        onRowClick={(r) => setOpenId(r.id)}
+        onRowClick={(r) => setOpenId((id) => (id === r.id ? null : r.id))}
         activeRowId={openId}
         initialSort={{ id: "number", dir: "asc" }}
         emptyMessage={reports.length ? "No observations yet." : "Create a field report first; observations are recorded in reports."}

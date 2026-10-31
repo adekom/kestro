@@ -16,7 +16,8 @@ import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/aut
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusSelect } from "@/components/StatusSelect";
 import { SlideOver } from "@/components/ui/SlideOver";
-import { formatLongDate } from "@/lib/domain";
+import { formatLongDate, statusOn } from "@/lib/domain";
+import type { StatusDef } from "@/lib/types";
 import type { ObservationDetail } from "@/server/services/reportView";
 import { PhotoAttachments } from "./PhotoAttachments";
 
@@ -105,10 +106,13 @@ function ObservationEditor({
   const { item, report, statuses, resolvedStatusId, groups } = detail;
   const o = item.observation;
   const statusById = new Map(statuses.map((s) => [s.id, s]));
+  // In a later report the original record is fixed: only updates and status change.
+  const carriedForward = o.originReportId !== report.id;
   const [fields, setFields] = useState({ title: o.title, description: o.description, groupId: o.groupId });
   const version = useRef(o.version);
   const { conflict } = useAutosave(`obs-${o.id}`, fields, async (v) => {
-    const res = await updateObservationAction(projectId, o.id, v, version.current);
+    const patch = carriedForward ? { groupId: v.groupId } : v;
+    const res = await updateObservationAction(projectId, o.id, patch, version.current, report.id);
     if (res.ok) {
       version.current = res.data;
       onChanged();
@@ -117,7 +121,6 @@ function ObservationEditor({
   });
   const [error, setError] = useState<string | null>(null);
   const [newUpdate, setNewUpdate] = useState("");
-  const carriedForward = o.originReportId !== report.id;
 
   const run = async (p: Promise<{ ok: boolean; error?: string }>) => {
     const res = await p;
@@ -126,8 +129,13 @@ function ObservationEditor({
     return res.ok;
   };
 
+  // Timeline: the original record, then each later visit with its updates and the status then.
+  const laterDates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
+    .filter((d) => d > o.originalDate)
+    .sort();
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 rounded-md bg-surface-muted px-3 py-2 text-xs text-text-muted">
         <span>
           Status, updates and photos are recorded in <span className="font-medium text-text">{detail.reportLabel}</span>.
@@ -141,11 +149,13 @@ function ObservationEditor({
         </div>
       )}
 
-      <section className="space-y-3">
-        <div>
-          <label className="label" htmlFor="obs-title">Title</label>
-          <input id="obs-title" className="input" value={fields.title} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
-        </div>
+      <section className="space-y-4">
+        {!carriedForward && (
+          <div>
+            <label className="label" htmlFor="obs-title">Title</label>
+            <input id="obs-title" className="input" value={fields.title} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="obs-status">Status</label>
@@ -171,41 +181,54 @@ function ObservationEditor({
             </select>
           </div>
         </div>
-        <div>
-          <label className="label" htmlFor="obs-desc">Description</label>
-          <textarea id="obs-desc" className="input min-h-28" value={fields.description} onChange={(e) => setFields({ ...fields, description: e.target.value })} />
-        </div>
-        <p className="text-xs text-text-muted">Opened {formatLongDate(o.originalDate)}. Shared by every report that includes it.</p>
+        {!carriedForward && (
+          <div>
+            <label className="label" htmlFor="obs-desc">Description</label>
+            <textarea id="obs-desc" className="input min-h-28" value={fields.description} onChange={(e) => setFields({ ...fields, description: e.target.value })} />
+          </div>
+        )}
       </section>
 
-      {/* An observation created in this report is its initial record: no history or updates yet. */}
-      {carriedForward && (
-        <section aria-labelledby="history-heading" className="space-y-2">
-          <h3 id="history-heading" className="text-sm font-semibold">History</h3>
-          <ol className="space-y-2 text-sm">
-            {item.statusEvents.map((e) => (
-              <li key={e.id} className="flex gap-3 text-text-muted">
-                <span className="w-28 shrink-0">{formatLongDate(e.date)}</span>
-                <span>Status: <StatusBadge status={statusById.get(e.statusId)} /></span>
-              </li>
-            ))}
-            {item.updates.map((u) =>
-              u.reportId === report.id ? (
-                <EditableUpdate
-                  key={u.id}
-                  date={u.date}
-                  text={u.text}
-                  onSave={(text) => run(editUpdateAction(projectId, report.id, o.id, u.id, text))}
-                  onDelete={() => run(deleteUpdateAction(projectId, report.id, o.id, u.id))}
-                />
-              ) : (
-                <li key={u.id} className="flex gap-3">
-                  <span className="w-28 shrink-0 text-text-muted">{formatLongDate(u.date)}</span>
-                  <span className="whitespace-pre-wrap">{u.text}</span>
-                </li>
-              ),
-            )}
-          </ol>
+      <section aria-labelledby="history-heading" className="space-y-3">
+        <h3 id="history-heading" className="text-sm font-semibold">History</h3>
+        <ol>
+          <TimelineEntry
+            date={o.originalDate}
+            heading="Observation created"
+            status={statusById.get(statusOn(item.statusEvents, o.originalDate) ?? "")}
+            last={laterDates.length === 0}
+          >
+            {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
+            {carriedForward && <p className="mt-1 text-xs text-text-muted">The original record is fixed; add an update below instead.</p>}
+          </TimelineEntry>
+          {laterDates.map((date, i) => {
+            const updates = item.updates.filter((u) => u.date === date);
+            return (
+              <TimelineEntry
+                key={date}
+                date={date}
+                heading={updates.length ? "Update" : "Status changed"}
+                status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
+                last={i === laterDates.length - 1}
+              >
+                {updates.map((u) =>
+                  u.reportId === report.id ? (
+                    <EditableUpdate
+                      key={u.id}
+                      text={u.text}
+                      onSave={(text) => run(editUpdateAction(projectId, report.id, o.id, u.id, text))}
+                      onDelete={() => run(deleteUpdateAction(projectId, report.id, o.id, u.id))}
+                    />
+                  ) : (
+                    <p key={u.id} className="whitespace-pre-wrap">{u.text}</p>
+                  ),
+                )}
+              </TimelineEntry>
+            );
+          })}
+        </ol>
+        {/* Updates belong to later visits; the creating report holds the original description. */}
+        {carriedForward && (
           <form
             className="space-y-2"
             onSubmit={async (e) => {
@@ -213,12 +236,12 @@ function ObservationEditor({
               if (await run(addUpdateAction(projectId, report.id, o.id, newUpdate))) setNewUpdate("");
             }}
           >
-            <label className="label" htmlFor="new-update">Update for {formatLongDate(report.visitDate)}</label>
-            <textarea id="new-update" className="input min-h-16" value={newUpdate} onChange={(e) => setNewUpdate(e.target.value)} />
+            <label className="label" htmlFor="new-update">Add update for {formatLongDate(report.visitDate)}</label>
+            <textarea id="new-update" className="input min-h-20" value={newUpdate} onChange={(e) => setNewUpdate(e.target.value)} />
             <button className="btn" disabled={!newUpdate.trim()}>Add update</button>
           </form>
-        </section>
-      )}
+        )}
+      </section>
 
       <PhotoAttachments pid={projectId} rid={report.id} item={item} onChanged={onChanged} onError={setError} />
 
@@ -253,35 +276,57 @@ function ObservationEditor({
   );
 }
 
-function EditableUpdate({
+/** One dot on the history timeline, joined to the next by a vertical line. */
+function TimelineEntry({
   date,
-  text,
-  onSave,
-  onDelete,
+  heading,
+  status,
+  last,
+  children,
 }: {
   date: string;
-  text: string;
-  onSave: (text: string) => Promise<boolean>;
-  onDelete: () => void;
+  heading: string;
+  status: StatusDef | undefined;
+  last: boolean;
+  children?: React.ReactNode;
 }) {
+  return (
+    <li className="relative pb-5 pl-7 last:pb-0">
+      {!last && <span aria-hidden className="absolute top-4 bottom-0 left-[6px] w-0.5 bg-border" />}
+      <span
+        aria-hidden
+        className="absolute top-1 left-0 h-3.5 w-3.5 rounded-full border-2 border-surface ring-1 ring-border"
+        style={{ backgroundColor: status?.color ?? "var(--color-surface)" }}
+      />
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-sm font-semibold">{formatLongDate(date)}</span>
+        <span className="text-xs text-text-muted">{heading}</span>
+        <span className="ml-auto text-sm"><StatusBadge status={status} /></span>
+      </div>
+      {children && <div className="mt-1 space-y-2 text-sm">{children}</div>}
+    </li>
+  );
+}
+
+function EditableUpdate({ text, onSave, onDelete }: { text: string; onSave: (text: string) => Promise<boolean>; onDelete: () => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(text);
-  return (
-    <li className="flex gap-3">
-      <span className="w-28 shrink-0 text-text-muted">{formatLongDate(date)}</span>
-      {editing ? (
-        <div className="flex-1 space-y-1">
-          <textarea className="input min-h-16" aria-label="Edit update" value={value} onChange={(e) => setValue(e.target.value)} />
-          <button type="button" className="btn" onClick={async () => (await onSave(value)) && setEditing(false)}>Save</button>{" "}
+  if (editing) {
+    return (
+      <div className="space-y-1">
+        <textarea className="input min-h-16" aria-label="Edit update" value={value} onChange={(e) => setValue(e.target.value)} />
+        <div className="flex gap-2">
+          <button type="button" className="btn" onClick={async () => (await onSave(value)) && setEditing(false)}>Save</button>
           <button type="button" className="btn" onClick={() => setEditing(false)}>Cancel</button>
         </div>
-      ) : (
-        <>
-          <span className="flex-1 whitespace-pre-wrap">{text}</span>
-          <button type="button" className="link text-xs" onClick={() => setEditing(true)}>Edit</button>
-          <button type="button" className="link text-xs" onClick={onDelete}>Delete</button>
-        </>
-      )}
-    </li>
+      </div>
+    );
+  }
+  return (
+    <div className="flex gap-3">
+      <p className="flex-1 whitespace-pre-wrap">{text}</p>
+      <button type="button" className="link text-xs" onClick={() => setEditing(true)}>Edit</button>
+      <button type="button" className="link text-xs" onClick={onDelete}>Delete</button>
+    </div>
   );
 }

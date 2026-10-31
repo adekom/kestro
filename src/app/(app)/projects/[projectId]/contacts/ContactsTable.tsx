@@ -63,7 +63,7 @@ export function ContactsTable({
         filterPlaceholder="Filter contacts"
         onCreate={() => setAdding(true)}
         createLabel="Add contacts"
-        onRowClick={(r) => setOpenId(r.contact.id)}
+        onRowClick={(r) => setOpenId((id) => (id === r.contact.id ? null : r.contact.id))}
         activeRowId={openId}
         initialSort={{ id: "name", dir: "asc" }}
         emptyMessage="No contacts on this project yet."

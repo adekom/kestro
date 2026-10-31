@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { resetEmulators } from "../support/fixtures";
 import { createProject, getProject, saveGroups } from "@/server/services/projects";
 import { carryForwardCandidates, createReport, getMemberships, listReports } from "@/server/services/reports";
-import { addUpdate, createObservation, setStatusInReport } from "@/server/services/observations";
+import { addUpdate, createObservation, setStatusInReport, updateObservation } from "@/server/services/observations";
 import { buildReportView, getObservationDetail } from "@/server/services/reportView";
 import { ensureShareToken, listAttachments, readPhotoFile, resolveShare, revokeShare, uploadPhoto, getPhoto } from "@/server/services/photos";
 import { renderReportPdf } from "@/server/pdf/renderReport";
@@ -109,6 +109,21 @@ describe("observation editor data", () => {
     expect(latest.report.id).toBe(r2);
     expect(latest.reportLabel).toBe("Report 2 · July 28, 2026");
     expect((await getObservationDetail(pid, oid, r1)).report.id).toBe(r1);
+  });
+});
+
+describe("original observation record", () => {
+  it("can be edited only in its originating report; later reports add updates", async () => {
+    const pid = await newProject();
+    const r1 = await report(pid, "2026-07-14");
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "Water at sill", statusId: "open", groupId: null });
+    const r2 = await report(pid, "2026-07-28", r1, [oid]);
+
+    const v2 = await updateObservation(pid, oid, { description: "Water at sill and jamb" }, 1, r1);
+    await expect(updateObservation(pid, oid, { description: "Changed later" }, v2, r2)).rejects.toThrow(/originating|created/);
+    await expect(updateObservation(pid, oid, { title: "Renamed later" }, v2, r2)).rejects.toThrow();
+    // Presentation (group) can still change from a later report.
+    await expect(updateObservation(pid, oid, { groupId: null }, v2, r2)).resolves.toBe(v2 + 1);
   });
 });
 

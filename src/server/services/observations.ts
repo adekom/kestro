@@ -74,12 +74,18 @@ export async function createObservation(pid: string, rid: string, input: NewObse
 
 export type ObservationPatch = Partial<Pick<Observation, "title" | "description" | "groupId" | "originalDate">>;
 
-/** Autosave target for shared observation content. Rejects stale versions. */
+/**
+ * Autosave target for shared observation content. Rejects stale versions.
+ * The title, original description and date are the record made in the
+ * originating report: from any later report (`inReportId`) they are locked,
+ * and only updates and status changes may be added.
+ */
 export async function updateObservation(
   pid: string,
   oid: string,
   patch: ObservationPatch,
   expectedVersion: number,
+  inReportId: string,
 ): Promise<number> {
   if (patch.title !== undefined && !patch.title.trim()) throw new UserError("Observation title is required.");
   if (patch.originalDate !== undefined && !isIsoDate(patch.originalDate)) throw new UserError("Invalid date.");
@@ -93,6 +99,10 @@ export async function updateObservation(
     const obs = (await tx.get(ref)).data() as Observation | undefined;
     if (!obs || obs.deletedAt) throw new UserError("Observation not found.");
     if (obs.version !== expectedVersion) throw new ConflictError();
+    const touchesOriginal = clean.title !== undefined || clean.description !== undefined || clean.originalDate !== undefined;
+    if (touchesOriginal && obs.originReportId !== inReportId) {
+      throw new UserError("The original observation can only be edited in the report where it was created. Add an update instead.");
+    }
     tx.update(ref, { ...clean, version: obs.version + 1, updatedAt: now() });
     return obs.version + 1;
   });

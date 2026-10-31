@@ -15,6 +15,9 @@ import { isIsoDate, observationNumber, preselectForCarryForward, statusOn } from
 import type { Attendee, Membership, Observation, Project, Report, StatusEvent, SummaryOverride } from "@/lib/types";
 
 const MAX_MEMBERSHIPS_PER_CREATE = 400; // stays well inside Firestore's 500-write transaction limit
+// Simultaneous report creation in one project contends on the same documents;
+// allow extra retries so a busy moment yields a number, not an error.
+const CREATE_ATTEMPTS = 15;
 
 export async function listReports(pid: string): Promise<Report[]> {
   const snap = await reportsCol(pid).where("deletedAt", "==", null).get();
@@ -129,6 +132,24 @@ export interface CreateReportInput {
 }
 
 /**
+ * Re-runs a transaction the server abandoned before it committed. Under heavy
+ * contention the emulator closes a competing transaction with
+ * INVALID_ARGUMENT ("Transaction is invalid or closed"), which the client
+ * library does not retry itself. Nothing was written, so retrying is safe.
+ */
+async function withTransactionRetry<T>(run: () => Promise<T>, attempts = 5): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await run();
+    } catch (e) {
+      const closed = (e as { code?: number }).code === 3 && /Transaction is invalid or closed/.test(String((e as Error).message));
+      if (!closed || i >= attempts) throw e;
+      await new Promise((r) => setTimeout(r, 50 * i + Math.random() * 100));
+    }
+  }
+}
+
+/**
  * Creates a report with the next gap-free sequence number. The sequence is
  * allocated inside a transaction that reads the project's live report set,
  * so concurrent creates (or a concurrent renumber) retry rather than collide.
@@ -140,7 +161,7 @@ export async function createReport(pid: string, input: CreateReportInput): Promi
     throw new UserError(`A report can carry forward at most ${MAX_MEMBERSHIPS_PER_CREATE} observations at once.`);
   }
   const rid = newId();
-  await db().runTransaction(async (tx) => {
+  await withTransactionRetry(() => db().runTransaction(async (tx) => {
     const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
     if (!project) throw new UserError("Project not found.");
     const live = await tx.get(reportsCol(pid).where("deletedAt", "==", null));
@@ -185,7 +206,7 @@ export async function createReport(pid: string, input: CreateReportInput): Promi
       tx.create(membershipsCol(pid, rid).doc(observationId), m);
     });
     tx.update(projectDoc(pid), { reportCount: project.reportCount + 1, updatedAt: now() });
-  });
+  }, { maxAttempts: CREATE_ATTEMPTS }));
   return rid;
 }
 
