@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { getProject } from "@/server/services/projects";
 import { getMemberships, getReport, getStatusEvents, reportSequenceMap } from "@/server/services/reports";
 import { listProjectObservations } from "@/server/services/observations";
 import { getSettings } from "@/server/services/settings";
 import { formatLongDate, observationNumber, reportLabel, statusOn } from "@/lib/domain";
 import { AddExistingObservations } from "./AddExistingObservations";
+import { PageHeader } from "@/components/PageHeader";
 
 /** Carry earlier project observations into this report (membership only; nothing is copied). */
 export default async function AddExistingPage({ params }: { params: Promise<{ projectId: string; reportId: string }> }) {
@@ -32,12 +32,12 @@ export default async function AddExistingPage({ params }: { params: Promise<{ pr
   const reportHref = `/projects/${projectId}/reports/${reportId}`;
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-4 p-6">
-      <Link href={reportHref} className="link text-xs">
-        ← {reportLabel(project.reportPrefix, report.sequence)} · {formatLongDate(report.visitDate)}
-      </Link>
-      <h1 className="text-xl font-semibold">Carry forward observations</h1>
-      <p className="text-sm text-text-muted">Add earlier observations from this project to this report. They keep their number and history.</p>
+    <main className="page">
+      <PageHeader
+        back={{ href: reportHref, label: `${reportLabel(project.reportPrefix, report.sequence)} · ${formatLongDate(report.visitDate)}` }}
+        title="Carry forward observations"
+        subtitle="Add earlier observations from this project to this report. They keep their number and history."
+      />
       <AddExistingObservations
         projectId={projectId}
         reportId={reportId}

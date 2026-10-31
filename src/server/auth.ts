@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminAuth } from "./firebaseAdmin";
 import { contactsCol, usersCol } from "./paths";
+import { emailKey } from "@/lib/domain";
 import type { AppUser, Contact, Role } from "@/lib/types";
 
 export const SESSION_COOKIE = "__session";
@@ -24,11 +25,10 @@ export class AuthError extends Error {
   }
 }
 
-export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 /** Looks up an allowlisted, enabled user. Returns null for unknown or disabled accounts. */
 export async function findActiveUser(email: string): Promise<AppUser | null> {
-  const snap = await usersCol().doc(normalizeEmail(email)).get();
+  const snap = await usersCol().doc(emailKey(email)).get();
   if (!snap.exists) return null;
   const user = snap.data() as AppUser;
   return user.enabled ? user : null;

@@ -9,8 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
-    "test:emulator": "firebase emulators:exec --config firebase.test.json --project demo-kestro-test --only auth,firestore,storage \"vitest run --project emulator\"",
-    "emulators": "firebase emulators:start --only auth,firestore,storage --import=./emulator-data --export-on-exit"
+    "test:emulator": "node scripts/test-emulator.mjs",
+    "emulators": "firebase emulators:start --only auth,firestore,storage --import=./emulator-data --export-on-exit",
+    "seed:dev": "node --env-file=.env.local --conditions=react-server --import tsx scripts/seed-dev.ts"
   },
   "dependencies": {
     "firebase": "^11.10.0",
@@ -35,6 +36,7 @@
     "eslint-config-next": "15.5.4",
     "firebase-tools": "^14.27.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
   },

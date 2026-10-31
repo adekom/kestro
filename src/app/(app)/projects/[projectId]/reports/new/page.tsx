@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { requirePageUser } from "@/server/auth";
 import { getProject } from "@/server/services/projects";
 import { listReports } from "@/server/services/reports";
 import { getSettings } from "@/server/services/settings";
-import { reportLabel } from "@/lib/domain";
+import { formatLongDate, reportLabel } from "@/lib/domain";
 import { NewReportForm } from "./NewReportForm";
+import { PageHeader } from "@/components/PageHeader";
 
 export default async function NewReportPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -16,15 +16,15 @@ export default async function NewReportPage({ params }: { params: Promise<{ proj
   ]);
   const sources = [...reports].reverse().map((r) => ({
     id: r.id,
-    label: `${reportLabel(project.reportPrefix, r.sequence)} — ${r.visitDate}`,
+    label: `${reportLabel(project.reportPrefix, r.sequence)} — ${formatLongDate(r.visitDate)}`,
   }));
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-4 p-6">
-      <Link href={`/projects/${projectId}`} className="link text-xs">← {project.name}</Link>
-      <h1 className="text-xl font-semibold">
-        New report <span className="text-text-muted">({reportLabel(project.reportPrefix, project.reportCount + 1)})</span>
-      </h1>
+    <main className="page">
+      <PageHeader
+        back={{ href: `/projects/${projectId}`, label: project.name }}
+        title={<>New report <span className="text-text-muted">({reportLabel(project.reportPrefix, project.reportCount + 1)})</span></>}
+      />
       <NewReportForm
         projectId={projectId}
         sources={sources}

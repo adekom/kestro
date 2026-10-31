@@ -5,9 +5,8 @@ import { adminAuth } from "../firebaseAdmin";
 import { bootstrapDoc, usersCol } from "../paths";
 import { now } from "../time";
 import { UserError } from "../errors";
-import { normalizeEmail } from "../auth";
 import { ensureStaffContactInTx, getContactsByIds } from "./contacts";
-import { EMAIL_PATTERN } from "@/lib/domain";
+import { EMAIL_PATTERN, emailKey } from "@/lib/domain";
 import type { AppUser, Contact, Role } from "@/lib/types";
 
 export interface StaffNames {
@@ -24,7 +23,7 @@ export async function listUsers(): Promise<Array<AppUser & { contact: Contact | 
 
 /** Adds a staff member. They also join (or are linked to) the firm contact list. */
 export async function addUser(rawEmail: string, role: Role, names: StaffNames): Promise<void> {
-  const email = normalizeEmail(rawEmail);
+  const email = emailKey(rawEmail);
   if (!EMAIL_PATTERN.test(email)) throw new UserError("Enter a valid email address.");
   if (!names.firstName.trim()) throw new UserError("First name is required.");
   const ref = usersCol().doc(email);
@@ -41,7 +40,7 @@ export async function addUser(rawEmail: string, role: Role, names: StaffNames): 
  * organization without an enabled administrator.
  */
 export async function updateUser(rawEmail: string, patch: { role?: Role; enabled?: boolean }): Promise<void> {
-  const email = normalizeEmail(rawEmail);
+  const email = emailKey(rawEmail);
   const ref = usersCol().doc(email);
   const uid = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -62,7 +61,7 @@ export async function updateUser(rawEmail: string, patch: { role?: Role; enabled
 
 /** Records the sign-in and makes sure staff added before contacts existed get one. */
 export async function recordSignIn(email: string, uid: string): Promise<void> {
-  const ref = usersCol().doc(normalizeEmail(email));
+  const ref = usersCol().doc(emailKey(email));
   await db().runTransaction(async (tx) => {
     const user = (await tx.get(ref)).data() as AppUser | undefined;
     if (!user) return;
@@ -93,7 +92,7 @@ export async function isBootstrapOpen(): Promise<boolean> {
 export async function completeBootstrap(rawEmail: string, uid: string, secret: string, names: StaffNames): Promise<void> {
   if (!secretMatches(secret)) throw new UserError("Setup is unavailable or the setup secret is incorrect.");
   if (!names.firstName.trim()) throw new UserError("First name is required.");
-  const email = normalizeEmail(rawEmail);
+  const email = emailKey(rawEmail);
   await db().runTransaction(async (tx) => {
     if ((await tx.get(bootstrapDoc())).exists) throw new UserError("Setup has already been completed.");
     const contactId = await ensureStaffContactInTx(tx, email, names);

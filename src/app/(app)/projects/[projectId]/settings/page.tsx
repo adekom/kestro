@@ -5,9 +5,11 @@ import { ProjectDetailsForm } from "./ProjectDetailsForm";
 export default async function ProjectSettingsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const project = await getProject((await params).projectId);
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-4 p-6">
+    <main className="page">
       <ProjectSubpageHeader project={project} title="Project settings" />
-      <ProjectDetailsForm project={project} />
+      <div className="form-width">
+        <ProjectDetailsForm project={project} />
+      </div>
     </main>
   );
 }

@@ -1,17 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContactAction } from "@/app/actions";
 import { ContactForm } from "@/components/ContactForm";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function NewContactPage() {
   const router = useRouter();
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-4 p-6">
-      <Link href="/contacts" className="link text-xs">← Contacts</Link>
-      <h1 className="text-xl font-semibold">New contact</h1>
-      <div className="card p-4">
+    <main className="page">
+      <PageHeader back={{ href: "/contacts", label: "Contacts" }} title="New contact" />
+      <div className="card form-width p-4">
         <ContactForm
           submitLabel="Create contact"
           onCancel={() => router.push("/contacts")}

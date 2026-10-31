@@ -12,7 +12,7 @@ export default async function ProjectContactsPage({ params }: { params: Promise<
     return contact ? [{ ...pc, contact }] : [];
   });
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-4 p-6">
+    <main className="page">
       <ProjectSubpageHeader
         project={project}
         title="Project contacts"

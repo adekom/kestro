@@ -4,16 +4,20 @@ import { SettingsNav } from "./SettingsNav";
 import { OrganizationForm } from "./OrganizationForm";
 import { StatusesEditor } from "./StatusesEditor";
 import { LogoUpload } from "./LogoUpload";
+import { PageHeader } from "@/components/PageHeader";
 
 export default async function SettingsPage() {
   await requirePageUser("admin");
   const settings = await getSettings();
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
+    <main className="page">
+      <PageHeader title="Settings" />
       <SettingsNav />
+      <div className="form-width space-y-6">
       <OrganizationForm settings={settings} />
       <LogoUpload hasLogo={Boolean(settings.logoPath)} />
       <StatusesEditor statuses={settings.statuses} resolvedStatusId={settings.resolvedStatusId} />
+      </div>
     </main>
   );
 }

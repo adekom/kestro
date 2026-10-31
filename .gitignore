@@ -56,3 +56,6 @@ credentials*.json
 /imports/
 *.pdf
 *.zip
+
+# test emulator scratch space
+.emulator-tmp-test/

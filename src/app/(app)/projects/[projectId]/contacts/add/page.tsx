@@ -7,9 +7,11 @@ export default async function AddProjectContactsPage({ params }: { params: Promi
   const project = await getProject((await params).projectId);
   const contacts = await listContacts();
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-4 p-6">
+    <main className="page">
       <ProjectSubpageHeader project={project} title="Add contacts" />
-      <AddProjectContacts projectId={project.id} contacts={contacts} existingIds={project.contactIds} />
+      <div className="form-width">
+        <AddProjectContacts projectId={project.id} contacts={contacts} existingIds={project.contactIds} />
+      </div>
     </main>
   );
 }

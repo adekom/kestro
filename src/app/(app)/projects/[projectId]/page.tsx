@@ -3,6 +3,7 @@ import { getProject } from "@/server/services/projects";
 import { reportSummaries } from "@/server/services/reports";
 import { getSettings } from "@/server/services/settings";
 import { formatLongDate, reportLabel } from "@/lib/domain";
+import { PageHeader } from "@/components/PageHeader";
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -11,18 +12,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const newest = [...summaries].reverse();
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
-      <div>
-        <Link href="/projects" className="link text-xs">← Projects</Link>
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="mr-auto">
-            <h1 className="text-xl font-semibold">{project.name}</h1>
-            <p className="text-sm text-text-muted">
-              {[project.code, project.address].filter(Boolean).join(" · ")}
-              {project.archived && <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-xs">Archived</span>}
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2" aria-label="Project">
+    <main className="page">
+      <PageHeader
+        back={{ href: "/projects", label: "Projects" }}
+        title={project.name}
+        subtitle={
+          <>
+            {[project.code, project.address].filter(Boolean).join(" · ")}
+            {project.archived && <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-xs">Archived</span>}
+          </>
+        }
+        actions={
+          <>
             <Link className="btn" href={`/projects/${projectId}/settings`}>Settings</Link>
             <Link className="btn" href={`/projects/${projectId}/contacts`}>
               Contacts <span className="text-text-muted">({project.contacts.length})</span>
@@ -31,9 +32,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
               Groups <span className="text-text-muted">({project.groups.length})</span>
             </Link>
             {!project.archived && <Link className="btn btn-primary" href={`/projects/${projectId}/reports/new`}>New report</Link>}
-          </nav>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="card" aria-labelledby="reports-heading">
         <h2 id="reports-heading" className="border-b border-border px-4 py-2.5 text-sm font-semibold">Reports</h2>
