@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { saveGroupsAction } from "@/app/actions";
 import { groupNameKey } from "@/lib/domain";
 import type { Group } from "@/lib/types";
@@ -30,9 +31,9 @@ export function GroupsEditor({ projectId, groups }: { projectId: string; groups:
           <li key={g.key} className="flex gap-2">
             <label className="sr-only" htmlFor={`g-${g.key}`}>Group name</label>
             <input id={`g-${g.key}`} className="input" aria-invalid={isDuplicate(g.name) || undefined} aria-describedby={isDuplicate(g.name) ? "groups-error" : undefined} value={g.name} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-            <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>
-            <button type="button" className="btn" disabled={i === items.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</button>
-            <button type="button" className="btn" onClick={() => setItems(items.filter((_, j) => j !== i))} aria-label="Remove group">✕</button>
+            <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ChevronUp className="h-4 w-4" aria-hidden /></button>
+            <button type="button" className="btn" disabled={i === items.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ChevronDown className="h-4 w-4" aria-hidden /></button>
+            <button type="button" className="btn" onClick={() => setItems(items.filter((_, j) => j !== i))} aria-label="Remove group"><X className="h-4 w-4" aria-hidden /></button>
           </li>
         ))}
       </ul>

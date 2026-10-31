@@ -14,8 +14,8 @@ export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { 
   };
 
   return (
-    <section className="card">
-      <div className="flex items-start gap-4 border-b border-border px-4 py-2.5">
+    <section>
+      <div className="flex items-start gap-4 pb-4">
         <div className="mr-auto">
           <h2 className="text-base font-semibold">Staff</h2>
           <p className="text-xs text-text-muted">
@@ -26,18 +26,18 @@ export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { 
       </div>
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-text-muted">
-          <tr>
-            <th className="px-4 py-2 font-medium">Name</th>
-            <th className="px-4 py-2 font-medium">Email</th>
-            <th className="px-4 py-2 font-medium">Role</th>
-            <th className="px-4 py-2 font-medium">Access</th>
-            <th className="px-4 py-2 font-medium">Last sign-in</th>
+          <tr className="border-b-2 border-border">
+            <th className="px-4 py-3 font-semibold">Name</th>
+            <th className="px-4 py-3 font-semibold">Email</th>
+            <th className="px-4 py-3 font-semibold">Role</th>
+            <th className="px-4 py-3 font-semibold">Access</th>
+            <th className="px-4 py-3 font-semibold">Last sign-in</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.email} className="border-t border-border">
-              <td className="px-4 py-2">
+            <tr key={u.email} className="border-b border-border">
+              <td className="px-4 py-3">
                 {u.contact ? (
                   <Link className="link" href={`/contacts/${u.contact.id}`}>{contactName(u.contact)}</Link>
                 ) : (
@@ -45,8 +45,8 @@ export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { 
                 )}
                 {u.email === currentEmail && <span className="ml-1 text-xs text-text-muted">(you)</span>}
               </td>
-              <td className="px-4 py-2">{u.email}</td>
-              <td className="px-4 py-2">
+              <td className="px-4 py-3">{u.email}</td>
+              <td className="px-4 py-3">
                 <select
                   className="input w-28"
                   aria-label={`Role for ${u.email}`}
@@ -57,12 +57,12 @@ export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { 
                   <option value="admin">Admin</option>
                 </select>
               </td>
-              <td className="px-4 py-2">
+              <td className="px-4 py-3">
                 <button type="button" className={`btn ${u.enabled ? "" : "btn-primary"}`} onClick={() => run(updateUserAction(u.email, { enabled: !u.enabled }))}>
                   {u.enabled ? "Disable" : "Enable"}
                 </button>
               </td>
-              <td className="px-4 py-2 text-text-muted">{u.lastSignInAt ? formatLongDate(u.lastSignInAt.slice(0, 10)) : "Never"}</td>
+              <td className="px-4 py-3 text-text-muted">{u.lastSignInAt ? formatLongDate(u.lastSignInAt.slice(0, 10)) : "Never"}</td>
             </tr>
           ))}
         </tbody>

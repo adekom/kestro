@@ -23,7 +23,7 @@
 }
 
 body {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-sans);
 }
@@ -36,14 +36,14 @@ body {
 @layer components {
   /* Standard page body: fills the space beside the nav (or the full width) and scrolls. */
   .page {
-    @apply flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-6;
+    @apply flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-10 py-8;
   }
   /* Forms stay at a readable width, left-aligned inside the page. */
   .form-width {
     @apply max-w-3xl;
   }
   .btn {
-    @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
     @apply border-primary bg-primary text-white hover:border-primary-hover hover:bg-primary-hover;
@@ -52,16 +52,20 @@ body {
     @apply border-danger text-danger hover:bg-danger-subtle;
   }
   .input {
-    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary aria-invalid:border-danger;
+    @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary aria-invalid:border-danger;
   }
   .label {
-    @apply mb-1 block text-xs font-medium text-text-muted;
+    @apply mb-1.5 block text-xs font-medium text-text-muted;
   }
   .card {
     @apply rounded-lg border border-border bg-surface;
   }
   .link {
     @apply text-primary underline-offset-2 hover:text-primary-hover hover:underline;
+  }
+  /* Page titles */
+  .page-title {
+    @apply text-3xl font-semibold tracking-tight;
   }
   .wordmark {
     @apply font-semibold tracking-[-0.025em] lowercase;

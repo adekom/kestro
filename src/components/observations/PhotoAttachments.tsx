@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   attachPhotoAction,
   detachPhotoAction,
@@ -195,8 +196,8 @@ function AttachmentCard({
         <label className="sr-only" htmlFor={`cap-${attachment.id}`}>Caption</label>
         <input id={`cap-${attachment.id}`} className="input text-xs" placeholder="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
         <div className="flex flex-wrap items-center gap-x-2 text-xs">
-          <button type="button" className="link disabled:invisible" disabled={first} onClick={() => onMove(-1)} aria-label="Move photo earlier">←</button>
-          <button type="button" className="link disabled:invisible" disabled={last} onClick={() => onMove(1)} aria-label="Move photo later">→</button>
+          <button type="button" className="link disabled:invisible" disabled={first} onClick={() => onMove(-1)} aria-label="Move photo earlier"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+          <button type="button" className="link disabled:invisible" disabled={last} onClick={() => onMove(1)} aria-label="Move photo later"><ChevronRight className="h-4 w-4" aria-hidden /></button>
           <a className="link" href={photoUrl(pid, attachment.photoId, "original")}>Original</a>
           <button
             type="button"

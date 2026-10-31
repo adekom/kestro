@@ -30,7 +30,7 @@ export default async function FieldReportsPage({ params }: { params: Promise<{ p
 
   return (
     <main className="page">
-      <h1 className="text-xl font-semibold">Field Reports</h1>
+      <h1 className="page-title">Field Reports</h1>
       <FieldReportsTable
         projectId={projectId}
         rows={rows}

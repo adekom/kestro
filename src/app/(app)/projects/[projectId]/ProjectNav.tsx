@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronsUpDown, ClipboardList, FileText, Settings, Users, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -12,20 +13,10 @@ interface ProjectOption {
 }
 
 const SECTIONS = [
-  { slug: "reports", label: "Field Reports", icon: "M5 3h7l4 4v10H5V3Zm7 1.5V8h3.5M7.5 11h6M7.5 14h6" },
-  { slug: "observations", label: "Observations", icon: "M10 4c4 0 7 4 7 6s-3 6-7 6-7-4-7-6 3-6 7-6Zm0 3.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" },
-  { slug: "contacts", label: "Contacts", icon: "M8 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 7c0-2.8 2.2-5 5-5s5 2.2 5 5M13.5 9a2.5 2.5 0 1 0 0-5M15 11.8c1.8.6 3 2.4 3 4.7" },
+  { slug: "reports", label: "Field Reports", Icon: FileText },
+  { slug: "observations", label: "Observations", Icon: ClipboardList },
+  { slug: "contacts", label: "Contacts", Icon: Users },
 ] as const;
-const SETTINGS_ICON =
-  "M10 7.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6ZM8.7 2.5h2.6l.4 2 1.6.9 1.9-.7 1.3 2.2-1.5 1.4v1.4l1.5 1.4-1.3 2.2-1.9-.7-1.6.9-.4 2H8.7l-.4-2-1.6-.9-1.9.7-1.3-2.2 1.5-1.4V8.3L3.5 6.9l1.3-2.2 1.9.7 1.6-.9.4-2Z";
-
-function NavIcon({ d }: { d: string }) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" className="h-5 w-5 shrink-0" aria-hidden>
-      <path d={d} />
-    </svg>
-  );
-}
 
 export function ProjectNav({ project, projects }: { project: { id: string; name: string; archived: boolean }; projects: ProjectOption[] }) {
   const path = usePathname();
@@ -53,21 +44,21 @@ export function ProjectNav({ project, projects }: { project: { id: string; name:
   // Switching projects keeps you in the same section (e.g. Observations).
   const sectionRoot = SECTIONS.some((s) => s.slug === section) || section === "settings" ? section : "reports";
 
-  const item = (href: string, label: string, icon: string, active: boolean) => (
+  const item = (href: string, label: string, Icon: LucideIcon, active: boolean) => (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-3 border-l-[3px] px-4 py-2 text-sm ${
+      className={`flex items-center gap-3 border-l-[3px] px-5 py-2.5 text-sm ${
         active ? "border-primary bg-primary-subtle font-medium text-primary-hover" : "border-transparent text-text hover:bg-surface-muted"
       }`}
     >
-      <NavIcon d={icon} />
+      <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} aria-hidden />
       {label}
     </Link>
   );
 
   return (
-    <nav aria-label="Project" className="flex w-60 shrink-0 flex-col border-r border-border bg-surface">
+    <nav aria-label="Project" className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
       <div ref={root} className="relative border-b border-border p-3">
         <button
           type="button"
@@ -80,9 +71,7 @@ export function ProjectNav({ project, projects }: { project: { id: string; name:
             <span className="block text-xs text-text-muted">Project{project.archived ? " (archived)" : ""}</span>
             <span className="block truncate font-semibold">{project.name}</span>
           </span>
-          <svg aria-hidden viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-text-muted">
-            <path d="M5.5 7.5 10 12l4.5-4.5h-9Z" />
-          </svg>
+          <ChevronsUpDown aria-hidden className="h-4 w-4 text-text-muted" />
         </button>
         {open && (
           <div className="absolute top-full right-3 left-3 z-30 mt-1 rounded-md border border-border bg-surface shadow-lg">
@@ -122,9 +111,9 @@ export function ProjectNav({ project, projects }: { project: { id: string; name:
         )}
       </div>
       <div className="flex-1 py-2">
-        {SECTIONS.map((s) => item(`${base}/${s.slug}`, s.label, s.icon, section === s.slug))}
+        {SECTIONS.map((s) => item(`${base}/${s.slug}`, s.label, s.Icon, section === s.slug))}
       </div>
-      <div className="border-t border-border py-2">{item(`${base}/settings`, "Settings", SETTINGS_ICON, section === "settings")}</div>
+      <div className="border-t border-border py-2">{item(`${base}/settings`, "Settings", Settings, section === "settings")}</div>
     </nav>
   );
 }

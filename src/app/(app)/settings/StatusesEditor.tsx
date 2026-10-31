@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { saveStatusesAction } from "@/app/actions";
 import type { StatusDef } from "@/lib/types";
 
@@ -59,8 +60,8 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
                 <input type="radio" name="resolved" className="accent-primary" aria-label={`${s.label} is the resolved status`} checked={resolvedIndex === i} onChange={() => setResolvedIndex(i)} />
               </td>
               <td className="py-1.5 text-right whitespace-nowrap">
-                <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>{" "}
-                <button type="button" className="btn" disabled={i === items.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</button>{" "}
+                <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ChevronUp className="h-4 w-4" aria-hidden /></button>{" "}
+                <button type="button" className="btn" disabled={i === items.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ChevronDown className="h-4 w-4" aria-hidden /></button>{" "}
                 <button
                   type="button"
                   className="btn"
@@ -71,7 +72,7 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
                   }}
                   aria-label="Remove status"
                 >
-                  ✕
+                  <X className="h-4 w-4" aria-hidden />
                 </button>
               </td>
             </tr>

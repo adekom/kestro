@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { X } from "lucide-react";
 
 /**
  * Edit panel that slides in from the right edge, below the header. The page
@@ -38,16 +39,14 @@ export function SlideOver({
         open ? "translate-x-0" : "translate-x-full"
       }`}
     >
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{title}</h2>
+      <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+        <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>
         {actions}
         <button type="button" className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text" onClick={onClose} aria-label="Close panel">
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
-            <path d="M5.3 4 4 5.3 8.7 10 4 14.7 5.3 16l4.7-4.7 4.7 4.7 1.3-1.3-4.7-4.7L16 5.3 14.7 4 10 8.7 5.3 4Z" />
-          </svg>
+          <X className="h-5 w-5" aria-hidden />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">{open && children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">{open && children}</div>
     </aside>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
 
 /**
  * Pop-up window over the page with a semi-opaque backdrop. Uses the native
@@ -38,15 +39,13 @@ export function Modal({
     >
       {open && (
         <div className="flex max-h-[90vh] flex-col">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <h2 id="modal-title" className="text-base font-semibold">{title}</h2>
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 id="modal-title" className="text-lg font-semibold">{title}</h2>
             <button type="button" className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text" onClick={onClose} aria-label="Close">
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
-                <path d="M5.3 4 4 5.3 8.7 10 4 14.7 5.3 16l4.7-4.7 4.7 4.7 1.3-1.3-4.7-4.7L16 5.3 14.7 4 10 8.7 5.3 4Z" />
-              </svg>
+              <X className="h-5 w-5" aria-hidden />
             </button>
           </div>
-          <div className="overflow-y-auto p-5">{children}</div>
+          <div className="overflow-y-auto p-6">{children}</div>
         </div>
       )}
     </dialog>

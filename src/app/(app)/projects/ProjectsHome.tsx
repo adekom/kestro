@@ -49,7 +49,7 @@ export function ProjectsHome({
   return (
     <main className="page">
       <div>
-        <h1 className="text-xl font-semibold">Welcome, {firstName}</h1>
+        <h1 className="page-title">Welcome, {firstName}</h1>
         <p className="text-sm text-text-muted">Choose a project to work on.</p>
       </div>
       <div role="tablist" aria-label="Which projects" className="flex gap-6 border-b border-border text-sm">

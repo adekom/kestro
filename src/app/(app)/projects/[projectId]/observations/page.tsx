@@ -15,7 +15,7 @@ export default async function ObservationsPage({ params }: { params: Promise<{ p
   ]);
   return (
     <main className="page">
-      <h1 className="text-xl font-semibold">Observations</h1>
+      <h1 className="page-title">Observations</h1>
       <ObservationsTable
         projectId={projectId}
         rows={rows}

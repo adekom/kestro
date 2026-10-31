@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { StatusDef } from "@/lib/types";
 
 function Dot({ color }: { color?: string }) {
@@ -84,9 +85,7 @@ export function StatusSelect({
       >
         <Dot color={current?.color} />
         <span className="flex-1 truncate">{current ? label(current) : "No status"}</span>
-        <svg aria-hidden viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-text-muted">
-          <path d="M5.5 7.5 10 12l4.5-4.5h-9Z" />
-        </svg>
+        <ChevronDown aria-hidden className="h-4 w-4 text-text-muted" />
       </button>
       {open && (
         <ul

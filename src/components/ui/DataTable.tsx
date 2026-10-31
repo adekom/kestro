@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search } from "lucide-react";
 
 export interface Column<T> {
   id: string;
@@ -119,12 +120,10 @@ export function DataTable<T>({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-3 pb-3">
+      <div className="flex items-center gap-3 pb-4">
         {onCreate && (
           <button type="button" className="btn btn-primary" onClick={onCreate}>
-            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden>
-              <path d="M9 4h2v5h5v2h-5v5H9v-5H4V9h5V4Z" />
-            </svg>
+            <Plus className="h-4 w-4" aria-hidden />
             {createLabel}
           </button>
         )}
@@ -135,13 +134,11 @@ export function DataTable<T>({
           </span>
         )}
         <div className="relative ml-auto w-72">
-          <svg viewBox="0 0 20 20" fill="currentColor" className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-text-muted" aria-hidden>
-            <path d="M8.5 3a5.5 5.5 0 0 1 4.4 8.8l3.7 3.7-1.1 1.1-3.7-3.7A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
-          </svg>
+          <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-text-muted" aria-hidden />
           <label className="sr-only" htmlFor={`filter-${storageKey ?? "table"}`}>{filterPlaceholder}</label>
           <input
             id={`filter-${storageKey ?? "table"}`}
-            className="input pl-8"
+            className="input pl-9"
             placeholder={filterPlaceholder}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -149,7 +146,7 @@ export function DataTable<T>({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-surface">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table ref={tableRef} className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             <col style={{ width: 44 }} />
@@ -157,9 +154,9 @@ export function DataTable<T>({
               <col key={c.id} style={{ width: `${(shares[i] * 100).toFixed(3)}%` }} />
             ))}
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-left text-xs font-semibold text-text-muted">
-            <tr className="border-b border-border">
-              <th className="px-3 py-2">
+          <thead className="sticky top-0 z-10 bg-surface text-left text-xs font-semibold text-text-muted">
+            <tr className="border-b-2 border-border">
+              <th className="px-4 py-3">
                 <input
                   type="checkbox"
                   className="accent-primary"
@@ -180,11 +177,11 @@ export function DataTable<T>({
                 return (
                   <th
                     key={c.id}
-                    className="relative px-3 py-2 select-none"
+                    className="group relative px-4 py-3 select-none hover:bg-surface-muted"
                     aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
                   >
                     {c.sortValue ? (
-                      <button type="button" className="flex w-full items-center gap-1 truncate text-left hover:text-text" onClick={() => toggleSort(c.id)}>
+                      <button type="button" className="flex w-full items-center gap-1.5 truncate text-left group-hover:text-text" onClick={() => toggleSort(c.id)}>
                         <span className="truncate">{c.header}</span>
                         <SortIcon dir={dir} />
                       </button>
@@ -208,7 +205,7 @@ export function DataTable<T>({
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={columns.length + 1} className="px-3 py-6 text-center text-text-muted">
+                <td colSpan={columns.length + 1} className="px-4 py-10 text-center text-text-muted">
                   {rows.length ? "No rows match the filter." : emptyMessage}
                 </td>
               </tr>
@@ -221,11 +218,11 @@ export function DataTable<T>({
                 <tr
                   key={id}
                   onClick={() => onRowClick?.(row)}
-                  className={`border-b border-border last:border-b-0 ${onRowClick ? "cursor-pointer" : ""} ${
+                  className={`border-b border-border ${onRowClick ? "cursor-pointer" : ""} ${
                     active ? "bg-primary-subtle" : checked ? "bg-primary-subtle/50" : "hover:bg-surface-muted"
                   }`}
                 >
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       className="accent-primary"
@@ -240,7 +237,7 @@ export function DataTable<T>({
                     />
                   </td>
                   {columns.map((c) => (
-                    <td key={c.id} className="truncate px-3 py-2">{c.cell(row)}</td>
+                    <td key={c.id} className="truncate px-4 py-3.5">{c.cell(row)}</td>
                   ))}
                 </tr>
               );
@@ -248,7 +245,7 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <p className="pt-2 text-xs text-text-muted">
+      <p className="pt-3 text-xs text-text-muted">
         Showing {visible.length} of {rows.length}
       </p>
     </div>
@@ -261,11 +258,9 @@ function defaultShares<T>(columns: Column<T>[]): number[] {
   return weights.map((w) => w / sum);
 }
 
+/** Sorted column: arrow for its direction. Others: up/down hint on hover only. */
 function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
-  return (
-    <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 shrink-0 ${dir ? "text-primary" : "text-text-muted/50"}`} aria-hidden>
-      <path d="M10 4 6 9h8l-4-5Z" fill="currentColor" opacity={dir === "desc" ? 0.25 : 1} />
-      <path d="m10 16 4-5H6l4 5Z" fill="currentColor" opacity={dir === "asc" ? 0.25 : 1} />
-    </svg>
-  );
+  if (dir === "asc") return <ArrowUp className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />;
+  if (dir === "desc") return <ArrowDown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />;
+  return <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-60" aria-hidden />;
 }

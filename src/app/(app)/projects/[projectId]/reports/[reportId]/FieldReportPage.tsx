@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft, CornerDownRight, Download, Eye, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SaveIndicator, SaveStatusProvider } from "@/components/autosave";
@@ -57,18 +58,24 @@ export function FieldReportPage({
 
   return (
     <SaveStatusProvider>
-      <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface px-6 py-3">
+      <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface px-10 py-5">
         <div className="min-w-0">
-          <Link href={`/projects/${project.id}/reports`} className="link text-xs">← Field Reports</Link>
-          <h1 className="text-xl font-semibold">
+          <Link href={`/projects/${project.id}/reports`} className="link inline-flex items-center gap-1 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Field Reports
+          </Link>
+          <h1 className="page-title">
             {title}
             <span className="ml-3 text-base font-normal text-text-muted">{formatLongDate(report.visitDate)}</span>
           </h1>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <SaveIndicator />
-          <a className="btn" href={pdfUrl} target="_blank" rel="noopener">Preview PDF</a>
-          <a className="btn btn-primary" href={`${pdfUrl}?download=1`}>Export PDF</a>
+          <a className="btn" href={pdfUrl} target="_blank" rel="noopener">
+            <Eye className="h-4 w-4" aria-hidden /> Preview PDF
+          </a>
+          <a className="btn btn-primary" href={`${pdfUrl}?download=1`}>
+            <Download className="h-4 w-4" aria-hidden /> Export PDF
+          </a>
         </div>
       </div>
 
@@ -82,9 +89,11 @@ export function FieldReportPage({
               !project.archived && (
                 <>
                   <button type="button" className="btn" onClick={() => setModal("carry")} disabled={candidates.length === 0}>
-                    Carry forward
+                    <CornerDownRight className="h-4 w-4" aria-hidden /> Carry forward
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={() => setModal("new")}>Add observation</button>
+                  <button type="button" className="btn btn-primary" onClick={() => setModal("new")}>
+                    <Plus className="h-4 w-4" aria-hidden /> Add observation
+                  </button>
                 </>
               )
             }

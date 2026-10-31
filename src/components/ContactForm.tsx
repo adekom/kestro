@@ -82,7 +82,7 @@ export function ContactForm({
         {field("company", "Company")}
         {field("title", "Title")}
       </div>
-      {emailLocked && <p className="text-xs text-text-muted">This person is a Kestro user; their email is managed under Settings → Staff.</p>}
+      {emailLocked && <p className="text-xs text-text-muted">This person is a Kestro user; their email is managed under Kestro settings, Staff.</p>}
       {children}
       {error && (
         <div role="alert" className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronDown, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -34,14 +35,10 @@ export function UserMenu({ firstName, email, isAdmin }: { firstName: string; ema
         className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white hover:bg-white/10"
       >
         <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white">
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0H3Z" />
-          </svg>
+          <User className="h-4 w-4" />
         </span>
         <span className="font-medium">{firstName}</span>
-        <svg aria-hidden viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white/70">
-          <path d="M5.5 7.5 10 12l4.5-4.5h-9Z" />
-        </svg>
+        <ChevronDown aria-hidden className="h-4 w-4 text-white/70" />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-border bg-surface py-1 shadow-lg">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { createContactAction } from "@/app/actions";
 import { contactName } from "@/lib/domain";
 import type { Contact, ProjectContact } from "@/lib/types";
@@ -89,9 +90,7 @@ export function ContactPicker({
                   }`}
                 >
                   {(checked || already) && (
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                      <path d="M8.1 13.4 4.7 10l-1.4 1.4 4.8 4.8L17 7.3l-1.4-1.4-7.5 7.5Z" />
-                    </svg>
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
                   )}
                 </span>
                 <span className={`min-w-0 flex-1 ${already ? "text-text-muted" : ""}`}>

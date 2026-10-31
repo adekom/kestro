@@ -8,7 +8,7 @@ export default async function ProjectContactsPage({ params }: { params: Promise<
   const [project, rows, firmContacts] = await Promise.all([getProject(projectId), projectContactRows(projectId), listContacts()]);
   return (
     <main className="page">
-      <h1 className="text-xl font-semibold">Contacts</h1>
+      <h1 className="page-title">Contacts</h1>
       <ContactsTable projectId={projectId} rows={rows} firmContacts={firmContacts} existingIds={project.contactIds} />
     </main>
   );

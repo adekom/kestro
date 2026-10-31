@@ -22,7 +22,7 @@ export default async function ProjectLayout({
         project={{ id: project.id, name: project.name, archived: project.archived }}
         projects={switchable.map((p) => ({ id: p.id, name: p.name, code: p.code, mine: mine(p) }))}
       />
-      <div className="flex min-w-0 flex-1 flex-col bg-surface-muted">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col bg-surface">{children}</div>
     </>
   );
 }
