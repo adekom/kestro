@@ -54,6 +54,11 @@ export function applicableToReport<T extends { date: IsoDate; reportId: string |
   return items.filter((i) => i.date <= report.visitDate || i.reportId === report.id);
 }
 
+/** Comparison key for group names: unique ignoring case and surrounding/repeated spaces. */
+export function groupNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
 export function isIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 }

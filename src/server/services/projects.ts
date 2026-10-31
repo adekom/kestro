@@ -2,6 +2,7 @@ import "server-only";
 import { contactsCol, projectDoc, projectsCol } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
+import { groupNameKey } from "@/lib/domain";
 import type { Contact, Group, Project } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
@@ -59,6 +60,12 @@ export async function saveGroups(pid: string, names: Array<{ id?: string; name: 
     .map((g) => ({ id: g.id || newId(), name: g.name.trim().slice(0, 100) }))
     .filter((g) => g.name)
     .map((g, order) => ({ ...g, order }));
+  const seen = new Set<string>();
+  for (const g of groups) {
+    const key = groupNameKey(g.name);
+    if (seen.has(key)) throw new UserError(`There is more than one group named "${g.name}". Group names must be unique.`);
+    seen.add(key);
+  }
   await projectDoc(pid).update({ groups, updatedAt: now() });
 }
 

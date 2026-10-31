@@ -6,6 +6,9 @@ const PROJECT = "demo-kestro";
 
 /** Wipes all emulator data between tests. */
 export async function resetEmulators(): Promise<void> {
+  if (process.env.FIRESTORE_EMULATOR_HOST?.endsWith(":8080")) {
+    throw new Error("Refusing to wipe the development emulators (port 8080). Run tests with `npm run test:emulator`.");
+  }
   await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, {
     method: "DELETE",
   });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { resetEmulators } from "../support/fixtures";
-import { createProject } from "@/server/services/projects";
+import { createProject, getProject, saveGroups } from "@/server/services/projects";
 import { carryForwardCandidates, createReport, getMemberships, listReports } from "@/server/services/reports";
 import { addUpdate, createObservation, setStatusInReport } from "@/server/services/observations";
 import { buildReportView } from "@/server/services/reportView";
@@ -94,6 +94,16 @@ describe("observation numbering and carry-forward", () => {
     await report(pid, "2026-07-28", r1, [oid]);
     const all = await db().collection(`projects/${pid}/observations`).get();
     expect(all.size).toBe(1);
+  });
+});
+
+describe("observation groups", () => {
+  it("rejects duplicate group names regardless of case and spacing", async () => {
+    const pid = await newProject();
+    await expect(saveGroups(pid, [{ name: "Roof" }, { name: " roof " }])).rejects.toThrow(/unique/);
+    expect((await getProject(pid)).groups).toEqual([]);
+    await saveGroups(pid, [{ name: "Roof" }, { name: "Level 0" }]);
+    expect((await getProject(pid)).groups.map((g) => g.name)).toEqual(["Roof", "Level 0"]);
   });
 });
 

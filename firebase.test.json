@@ -1,0 +1,13 @@
+{
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "storage": { "rules": "storage.rules" },
+  "emulators": {
+    "auth": { "port": 9109 },
+    "firestore": { "port": 8180 },
+    "storage": { "port": 9299 },
+    "hub": { "port": 4510 },
+    "logging": { "port": 4511 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

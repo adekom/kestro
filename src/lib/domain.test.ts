@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicableToReport, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, slug, statusOn } from "./domain";
+import { applicableToReport, groupNameKey, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, slug, statusOn } from "./domain";
 import type { StatusEvent } from "./types";
 
 const ev = (statusId: string, date: string, createdAt = `${date}T12:00:00Z`, id = `${statusId}-${date}`): StatusEvent => ({
@@ -74,6 +74,13 @@ describe("applicableToReport", () => {
       { id: "c", date: "2026-08-11", reportId: "r18" },
     ];
     expect(applicableToReport(items, { id: "r17", visitDate: "2026-07-28" }).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("groupNameKey", () => {
+  it("treats names differing only in case or spacing as the same", () => {
+    expect(groupNameKey("  Level  0 ")).toBe(groupNameKey("level 0"));
+    expect(groupNameKey("Roof")).not.toBe(groupNameKey("Roofs"));
   });
 });
 
