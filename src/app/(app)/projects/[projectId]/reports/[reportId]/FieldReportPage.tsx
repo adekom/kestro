@@ -24,12 +24,10 @@ import { Card, ReportInfoPanel } from "./ReportInfoPanel";
 export function FieldReportPage({
   view,
   contacts,
-  previousOngoingWork,
   candidates,
 }: {
   view: ReportView;
   contacts: Contact[];
-  previousOngoingWork: string;
   candidates: Candidate[];
 }) {
   const router = useRouter();
@@ -81,7 +79,7 @@ export function FieldReportPage({
 
       <main className="page">
         <div className="w-full max-w-4xl space-y-4">
-          <ReportInfoPanel view={view} contacts={contacts} previousOngoingWork={previousOngoingWork} />
+          <ReportInfoPanel view={view} contacts={contacts} />
 
           <Card
             title={`Observations (${view.observations.length})`}

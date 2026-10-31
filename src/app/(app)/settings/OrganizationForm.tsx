@@ -4,6 +4,7 @@ import { useState } from "react";
 import { updateSettingsAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
 import type { FieldVisibility, OrgSettings } from "@/lib/types";
+import { InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
 
 const VISIBILITY_LABELS: Record<keyof FieldVisibility, string> = {
   address: "Organization address",
@@ -35,7 +36,7 @@ function Form({ settings }: { settings: OrgSettings }) {
   const text = (k: "name" | "address" | "contactLine" | "footerText", label: string) => (
     <div>
       <label className="label" htmlFor={`org-${k}`}>{label}</label>
-      <input id={`org-${k}`} className="input" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+      <InlineText id={`org-${k}`} value={form[k]} onChange={(v) => setForm({ ...form, [k]: v })} />
     </div>
   );
 
@@ -53,7 +54,7 @@ function Form({ settings }: { settings: OrgSettings }) {
       </div>
       <div>
         <label className="label" htmlFor="org-disclaimer">Disclaimer (end of every report)</label>
-        <textarea id="org-disclaimer" className="input min-h-24" value={form.disclaimer} onChange={(e) => setForm({ ...form, disclaimer: e.target.value })} />
+        <InlineTextarea id="org-disclaimer" minHeight="min-h-24" value={form.disclaimer} onChange={(v) => setForm({ ...form, disclaimer: v })} />
       </div>
       <fieldset>
         <legend className="label">Show in PDF</legend>

@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
+import { Users, X } from "lucide-react";
 import { updateReportInfoAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
+import { InlineDate, InlineSelect, InlineText, InlineTextarea, InlineTime } from "@/components/ui/InlineEdit";
 import type { ReportView } from "@/server/services/reportView";
 import { contactName } from "@/lib/domain";
 import type { Attendee, Contact, SummaryOverride } from "@/lib/types";
@@ -24,16 +27,12 @@ export function Card({ title, titleFor, actions, children }: { title: string; ti
   );
 }
 
-/** The report's own information, autosaved: details, attendance, ongoing work. */
-export function ReportInfoPanel({
-  view,
-  contacts,
-  previousOngoingWork,
-}: {
-  view: ReportView;
-  contacts: Contact[];
-  previousOngoingWork: string;
-}) {
+/**
+ * The report's own information, autosaved: details, who was present, ongoing
+ * work. Contact details are read-only here; they're edited on the project's
+ * Contacts page.
+ */
+export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts: Contact[] }) {
   const { report, project, settings } = view;
   const [info, setInfo] = useState({
     visitDate: report.visitDate,
@@ -50,9 +49,17 @@ export function ReportInfoPanel({
     return res;
   });
   const set = <K extends keyof typeof info>(k: K, v: (typeof info)[K]) => setInfo((s) => ({ ...s, [k]: v }));
-  const setAttendee = (i: number, patch: Partial<Attendee>) =>
-    set("attendees", info.attendees.map((a, j) => (j === i ? { ...a, ...patch } : a)));
+  const setAttendee = (id: string, patch: Partial<Attendee>) =>
+    set("attendees", info.attendees.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+
+  const contactById = new Map(contacts.map((c) => [c.id, c]));
+  const roleById = new Map(project.contacts.map((c) => [c.contactId, c.projectRole]));
   const unlisted = contacts.filter((c) => !info.attendees.some((a) => a.contactId === c.id));
+  // Show current contact details; the stored copy covers attendees no longer on the project.
+  const shown = (a: Attendee) => {
+    const c = a.contactId ? contactById.get(a.contactId) : undefined;
+    return { name: c ? contactName(c) : a.name, company: c ? c.company : a.company, role: a.contactId ? (roleById.get(a.contactId) ?? "") : "" };
+  };
 
   return (
     <>
@@ -62,94 +69,127 @@ export function ReportInfoPanel({
           <button className="underline" onClick={() => window.location.reload()}>Reload</button>
         </div>
       )}
+
       <Card title="Report details">
         <div className="grid grid-cols-4 gap-3">
-        <div>
-          <label className="label" htmlFor="ri-date">Visit date</label>
-          <input id="ri-date" type="date" className="input" value={info.visitDate} onChange={(e) => e.target.value && set("visitDate", e.target.value)} />
-        </div>
-        <div>
-          <label className="label" htmlFor="ri-time">Time</label>
-          <input id="ri-time" type="time" className="input" value={info.visitTime} onChange={(e) => set("visitTime", e.target.value)} />
-        </div>
-        <div>
-          <label className="label" htmlFor="ri-author">Author</label>
-          <input id="ri-author" className="input" value={info.authorName} onChange={(e) => set("authorName", e.target.value)} />
-        </div>
-        <div>
-          <label className="label" htmlFor="ri-summary">Observation summary in PDF</label>
-          <select id="ri-summary" className="input" value={info.summaryOverride} onChange={(e) => set("summaryOverride", e.target.value as SummaryOverride)}>
-            <option value="default">Organization default ({settings.showSummaryDefault ? "show" : "hide"})</option>
-            <option value="show">Show</option>
-            <option value="hide">Hide</option>
-          </select>
-        </div>
+          <div>
+            <label className="label" htmlFor="ri-date">Visit date</label>
+            <InlineDate id="ri-date" value={info.visitDate} onChange={(v) => set("visitDate", v)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="ri-time">Time</label>
+            <InlineTime id="ri-time" value={info.visitTime} onChange={(v) => set("visitTime", v)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="ri-author">Author</label>
+            <InlineText id="ri-author" value={info.authorName} onChange={(v) => set("authorName", v)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="ri-summary">Observation summary in PDF</label>
+            <InlineSelect
+              id="ri-summary"
+              value={info.summaryOverride}
+              onChange={(v) => set("summaryOverride", v as SummaryOverride)}
+              options={[
+                { value: "default", label: `Organization default (${settings.showSummaryDefault ? "show" : "hide"})` },
+                { value: "show", label: "Show" },
+                { value: "hide", label: "Hide" },
+              ]}
+            />
+          </div>
         </div>
       </Card>
 
       <Card title="Contacts present">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-text-muted">
-            <tr>
-              <th className="py-1 font-medium">Name</th>
-              <th className="py-1 font-medium">Company</th>
-              <th className="py-1 font-medium">Present</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {info.attendees.map((a, i) => (
-              <tr key={a.id} className="border-t border-border">
-                <td className="py-1 pr-2">
-                  <input className="input" aria-label="Attendee name" value={a.name} onChange={(e) => setAttendee(i, { name: e.target.value })} />
-                </td>
-                <td className="py-1 pr-2">
-                  <input className="input" aria-label="Attendee company" value={a.company} onChange={(e) => setAttendee(i, { company: e.target.value })} />
-                </td>
-                <td className="py-1">
-                  <input type="checkbox" className="accent-primary" aria-label={`${a.name} present`} checked={a.present} onChange={(e) => setAttendee(i, { present: e.target.checked })} />
-                </td>
-                <td className="py-1 text-right">
-                  <button type="button" className="link text-xs" onClick={() => set("attendees", info.attendees.filter((_, j) => j !== i))}>Remove</button>
-                </td>
+        {info.attendees.length === 0 ? (
+          <p className="text-sm text-text-muted">No contacts listed for this visit.</p>
+        ) : (
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col style={{ width: 80 }} />
+              <col />
+              <col />
+              <col />
+              <col style={{ width: 48 }} />
+            </colgroup>
+            <thead className="text-left text-xs font-semibold text-text-muted">
+              <tr className="border-b-2 border-border">
+                <th className="px-3 py-2.5">Present</th>
+                <th className="px-3 py-2.5">Name</th>
+                <th className="px-3 py-2.5">Company</th>
+                <th className="px-3 py-2.5">Role</th>
+                <th aria-label="Remove" />
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {unlisted.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="btn"
-              onClick={() => set("attendees", [...info.attendees, { id: crypto.randomUUID(), contactId: c.id, name: contactName(c), company: c.company, present: true }])}
-            >
-              + {contactName(c)}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="btn"
-            onClick={() => set("attendees", [...info.attendees, { id: crypto.randomUUID(), contactId: null, name: "", company: "", present: true }])}
-          >
-            + Other attendee
-          </button>
+            </thead>
+            <tbody>
+              {info.attendees.map((a) => {
+                const s = shown(a);
+                return (
+                  <tr key={a.id} className="border-b border-border">
+                    <td className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        aria-label={`${s.name} present`}
+                        checked={a.present}
+                        onChange={(e) => setAttendee(a.id, { present: e.target.checked })}
+                      />
+                    </td>
+                    <td className="truncate px-3 py-3 font-medium">{s.name}</td>
+                    <td className="truncate px-3 py-3">{s.company}</td>
+                    <td className="truncate px-3 py-3 text-text-muted">{s.role}</td>
+                    <td className="px-1 py-2 text-right">
+                      <button
+                        type="button"
+                        className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-danger"
+                        aria-label={`Remove ${s.name} from this report`}
+                        title="Remove from this report"
+                        onClick={() => set("attendees", info.attendees.filter((x) => x.id !== a.id))}
+                      >
+                        <X className="h-4 w-4" aria-hidden />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {unlisted.length > 0 && (
+            <>
+              <label className="sr-only" htmlFor="add-attendee">Add a project contact to this report</label>
+              <select
+                id="add-attendee"
+                className="input w-64"
+                value=""
+                onChange={(e) => {
+                  const c = contactById.get(e.target.value);
+                  if (!c) return;
+                  set("attendees", [...info.attendees, { id: crypto.randomUUID(), contactId: c.id, name: contactName(c), company: c.company, present: true }]);
+                }}
+              >
+                <option value="">Add a project contact…</option>
+                {unlisted.map((c) => (
+                  <option key={c.id} value={c.id}>{contactName(c)}{c.company ? ` — ${c.company}` : ""}</option>
+                ))}
+              </select>
+            </>
+          )}
+          <Link className="btn" href={`/projects/${project.id}/contacts`}>
+            <Users className="h-4 w-4" aria-hidden /> Manage project contacts
+          </Link>
         </div>
       </Card>
 
       <Card title="Ongoing work" titleFor="ri-ongoing">
-        <div className="space-y-2">
-        {previousOngoingWork && (
-          <details className="rounded-md bg-surface-muted p-2 text-sm">
-            <summary className="cursor-pointer text-text-muted">Previous report’s ongoing work (review before reusing)</summary>
-            <p className="mt-2 whitespace-pre-wrap">{previousOngoingWork}</p>
-            <button type="button" className="btn mt-2" onClick={() => set("ongoingWork", info.ongoingWork ? `${info.ongoingWork}\n\n${previousOngoingWork}` : previousOngoingWork)}>
-              Insert into this report
-            </button>
-          </details>
-        )}
-        <textarea id="ri-ongoing" className="input min-h-36" value={info.ongoingWork} onChange={(e) => set("ongoingWork", e.target.value)} />
-        </div>
+        <InlineTextarea
+          id="ri-ongoing"
+          value={info.ongoingWork}
+          onChange={(v) => set("ongoingWork", v)}
+          placeholder="Describe the work in progress at this visit"
+          minHeight="min-h-36"
+        />
       </Card>
     </>
   );

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { saveGroupsAction } from "@/app/actions";
 import { groupNameKey } from "@/lib/domain";
 import type { Group } from "@/lib/types";
+import { InlineText } from "@/components/ui/InlineEdit";
 
 /** Optional presentation groups (e.g. Level 0, Exterior, Roof). Order controls report layout. */
 export function GroupsEditor({ projectId, groups }: { projectId: string; groups: Group[] }) {
@@ -30,7 +31,15 @@ export function GroupsEditor({ projectId, groups }: { projectId: string; groups:
         {items.map((g, i) => (
           <li key={g.key} className="flex gap-2">
             <label className="sr-only" htmlFor={`g-${g.key}`}>Group name</label>
-            <input id={`g-${g.key}`} className="input" aria-invalid={isDuplicate(g.name) || undefined} aria-describedby={isDuplicate(g.name) ? "groups-error" : undefined} value={g.name} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+            <div className={`flex-1 ${isDuplicate(g.name) ? "rounded-md ring-1 ring-danger" : ""}`}>
+              <InlineText
+                id={`g-${g.key}`}
+                startEditing={!g.id && !g.name}
+                placeholder="Group name"
+                value={g.name}
+                onChange={(v) => setItems(items.map((x, j) => (j === i ? { ...x, name: v } : x)))}
+              />
+            </div>
             <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ChevronUp className="h-4 w-4" aria-hidden /></button>
             <button type="button" className="btn" disabled={i === items.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ChevronDown className="h-4 w-4" aria-hidden /></button>
             <button type="button" className="btn" onClick={() => setItems(items.filter((_, j) => j !== i))} aria-label="Remove group"><X className="h-4 w-4" aria-hidden /></button>

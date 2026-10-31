@@ -16,6 +16,8 @@ import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/aut
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusSelect } from "@/components/StatusSelect";
 import { SlideOver } from "@/components/ui/SlideOver";
+import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
+import { Trash2 } from "lucide-react";
 import { formatLongDate, statusOn } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 import type { ObservationDetail } from "@/server/services/reportView";
@@ -153,7 +155,7 @@ function ObservationEditor({
         {!carriedForward && (
           <div>
             <label className="label" htmlFor="obs-title">Title</label>
-            <input id="obs-title" className="input" value={fields.title} onChange={(e) => setFields({ ...fields, title: e.target.value })} />
+            <InlineText id="obs-title" value={fields.title} onChange={(v) => setFields({ ...fields, title: v })} />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -169,22 +171,19 @@ function ObservationEditor({
           </div>
           <div>
             <label className="label" htmlFor="obs-group">Group</label>
-            <select
+            <InlineSelect
               id="obs-group"
-              className="input"
               value={fields.groupId ?? ""}
               disabled={groups.length === 0}
-              onChange={(e) => setFields({ ...fields, groupId: e.target.value || null })}
-            >
-              <option value="">{groups.length ? "None" : "No groups defined"}</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
+              onChange={(v) => setFields({ ...fields, groupId: v || null })}
+              options={[{ value: "", label: groups.length ? "None" : "No groups defined" }, ...groups.map((g) => ({ value: g.id, label: g.name }))]}
+            />
           </div>
         </div>
         {!carriedForward && (
           <div>
             <label className="label" htmlFor="obs-desc">Description</label>
-            <textarea id="obs-desc" className="input min-h-28" value={fields.description} onChange={(e) => setFields({ ...fields, description: e.target.value })} />
+            <InlineTextarea id="obs-desc" value={fields.description} onChange={(v) => setFields({ ...fields, description: v })} placeholder="Describe the condition observed" />
           </div>
         )}
       </section>
@@ -215,6 +214,7 @@ function ObservationEditor({
                   u.reportId === report.id ? (
                     <EditableUpdate
                       key={u.id}
+                      id={u.id}
                       text={u.text}
                       onSave={(text) => run(editUpdateAction(projectId, report.id, o.id, u.id, text))}
                       onDelete={() => run(deleteUpdateAction(projectId, report.id, o.id, u.id))}
@@ -308,25 +308,30 @@ function TimelineEntry({
   );
 }
 
-function EditableUpdate({ text, onSave, onDelete }: { text: string; onSave: (text: string) => Promise<boolean>; onDelete: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(text);
-  if (editing) {
-    return (
-      <div className="space-y-1">
-        <textarea className="input min-h-16" aria-label="Edit update" value={value} onChange={(e) => setValue(e.target.value)} />
-        <div className="flex gap-2">
-          <button type="button" className="btn" onClick={async () => (await onSave(value)) && setEditing(false)}>Save</button>
-          <button type="button" className="btn" onClick={() => setEditing(false)}>Cancel</button>
-        </div>
-      </div>
-    );
-  }
+/** An update recorded in this report: click to edit, icon to delete. */
+function EditableUpdate({ id, text, onSave, onDelete }: { id: string; text: string; onSave: (text: string) => Promise<boolean>; onDelete: () => void }) {
   return (
-    <div className="flex gap-3">
-      <p className="flex-1 whitespace-pre-wrap">{text}</p>
-      <button type="button" className="link text-xs" onClick={() => setEditing(true)}>Edit</button>
-      <button type="button" className="link text-xs" onClick={onDelete}>Delete</button>
+    <div className="flex items-start gap-1">
+      <div className="min-w-0 flex-1">
+        <InlineTextarea
+          id={`update-${id}`}
+          ariaLabel="Update text"
+          value={text}
+          minHeight="min-h-20"
+          onCommit={(v) => {
+            if (v.trim()) void onSave(v);
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        className="mt-1.5 rounded p-1 text-text-muted hover:bg-surface-muted hover:text-danger"
+        aria-label="Delete update"
+        title="Delete update"
+        onClick={onDelete}
+      >
+        <Trash2 className="h-4 w-4" aria-hidden />
+      </button>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { setProjectArchivedAction, updateProjectAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
 import type { Project } from "@/lib/types";
+import { InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
 
 export function ProjectDetailsForm({ project }: { project: Project }) {
   return (
@@ -26,9 +27,9 @@ function Form({ project }: { project: Project }) {
     <div>
       <label className="label" htmlFor={`p-${k}`}>{label}</label>
       {multiline ? (
-        <textarea id={`p-${k}`} className="input min-h-20" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+        <InlineTextarea id={`p-${k}`} minHeight="min-h-20" value={form[k]} onChange={(v) => setForm({ ...form, [k]: v })} />
       ) : (
-        <input id={`p-${k}`} className="input" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+        <InlineText id={`p-${k}`} value={form[k]} onChange={(v) => setForm({ ...form, [k]: v })} />
       )}
     </div>
   );

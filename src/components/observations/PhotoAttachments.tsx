@@ -11,6 +11,7 @@ import {
   updateCaptionAction,
 } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
+import { InlineText } from "@/components/ui/InlineEdit";
 import type { ObservationInReport } from "@/server/services/reportView";
 import type { Photo, PhotoAttachment } from "@/lib/types";
 
@@ -194,7 +195,7 @@ function AttachmentCard({
       </a>
       <div className="space-y-1.5 p-2">
         <label className="sr-only" htmlFor={`cap-${attachment.id}`}>Caption</label>
-        <input id={`cap-${attachment.id}`} className="input text-xs" placeholder="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        <InlineText id={`cap-${attachment.id}`} className="text-xs" placeholder="Add caption" value={caption} onChange={setCaption} />
         <div className="flex flex-wrap items-center gap-x-2 text-xs">
           <button type="button" className="link disabled:invisible" disabled={first} onClick={() => onMove(-1)} aria-label="Move photo earlier"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
           <button type="button" className="link disabled:invisible" disabled={last} onClick={() => onMove(1)} aria-label="Move photo later"><ChevronRight className="h-4 w-4" aria-hidden /></button>

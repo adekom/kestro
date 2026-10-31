@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { saveStatusesAction } from "@/app/actions";
 import type { StatusDef } from "@/lib/types";
+import { InlineText } from "@/components/ui/InlineEdit";
 
 const PALETTE = ["#C2410C", "#B45309", "#2563EB", "#7C3AED", "#15803D", "#475569"];
 
@@ -48,12 +49,12 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
           {items.map((s, i) => (
             <tr key={s.key} className="border-t border-border">
               <td className="py-1.5 pr-2">
-                <input className="input" aria-label="Status name" value={s.label} onChange={(e) => update(i, { label: e.target.value })} />
+                <InlineText id={`status-${s.key}`} ariaLabel="Status name" startEditing={!s.id && !s.label} placeholder="Status name" value={s.label} onChange={(v) => update(i, { label: v })} />
               </td>
               <td className="py-1.5 pr-2">
                 <div className="flex items-center gap-1.5">
                   <input type="color" aria-label={`${s.label} color`} value={s.color} onChange={(e) => update(i, { color: e.target.value.toUpperCase() })} className="h-8 w-10 cursor-pointer rounded border border-border" />
-                  <input className="input w-24 font-mono text-xs" aria-label={`${s.label} hex color`} value={s.color} onChange={(e) => update(i, { color: e.target.value })} />
+                  <div className="w-28"><InlineText id={`status-hex-${s.key}`} ariaLabel={`${s.label} hex color`} className="font-mono text-xs" value={s.color} onChange={(v) => update(i, { color: v })} /></div>
                 </div>
               </td>
               <td className="py-1.5">

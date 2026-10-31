@@ -5,6 +5,7 @@ import { useState } from "react";
 import { updateUserAction } from "@/app/actions";
 import { contactName, formatLongDate } from "@/lib/domain";
 import type { AppUser, Contact, Role } from "@/lib/types";
+import { InlineSelect } from "@/components/ui/InlineEdit";
 
 export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { contact: Contact | null }>; currentEmail: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -47,15 +48,15 @@ export function UsersEditor({ users, currentEmail }: { users: Array<AppUser & { 
               </td>
               <td className="px-4 py-3">{u.email}</td>
               <td className="px-4 py-3">
-                <select
-                  className="input w-28"
-                  aria-label={`Role for ${u.email}`}
-                  value={u.role}
-                  onChange={(e) => run(updateUserAction(u.email, { role: e.target.value as Role }))}
-                >
-                  <option value="editor">Editor</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <div className="w-32">
+                  <InlineSelect
+                    id={`role-${u.email}`}
+                    ariaLabel={`Role for ${u.email}`}
+                    value={u.role}
+                    onCommit={(v) => run(updateUserAction(u.email, { role: v as Role }))}
+                    options={[{ value: "editor", label: "Editor" }, { value: "admin", label: "Admin" }]}
+                  />
+                </div>
               </td>
               <td className="px-4 py-3">
                 <button type="button" className={`btn ${u.enabled ? "" : "btn-primary"}`} onClick={() => run(updateUserAction(u.email, { enabled: !u.enabled }))}>

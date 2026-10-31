@@ -7,9 +7,9 @@ import {
   addProjectContactsAction,
   removeProjectContactsAction,
   setProjectContactRoleAction,
-  updateContactAction,
 } from "@/app/actions";
-import { ContactForm } from "@/components/ContactForm";
+import { ContactDetailsEditor } from "@/components/ContactDetailsEditor";
+import { InlineText } from "@/components/ui/InlineEdit";
 import { ContactPicker } from "@/components/ContactPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -187,50 +187,33 @@ function ContactEditor({
   onRemove: () => void;
 }) {
   const [role, setRole] = useState(row.projectRole);
-  const [roleState, setRoleState] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">On this project</h3>
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="label" htmlFor="project-role">Role</label>
-            <input id="project-role" className="input" placeholder="e.g. Contractor" value={role} onChange={(e) => setRole(e.target.value)} />
-          </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={role === row.projectRole}
-            onClick={async () => {
-              const res = await setProjectContactRoleAction(projectId, row.contact.id, role);
-              setRoleState(res.ok ? "Saved" : res.error);
+        <div>
+          <label className="label" htmlFor="project-role">Role</label>
+          <InlineText
+            id="project-role"
+            placeholder="e.g. Contractor"
+            value={role}
+            onCommit={async (v) => {
+              setRole(v);
+              const res = await setProjectContactRoleAction(projectId, row.contact.id, v);
+              setRoleError(res.ok ? null : res.error);
               if (res.ok) onChanged();
             }}
-          >
-            Save role
-          </button>
+          />
         </div>
-        {roleState && <p className="text-xs text-text-muted" role="status">{roleState}</p>}
+        {roleError && <p className="text-xs text-danger" role="alert">{roleError}</p>}
       </section>
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Contact details</h3>
         <p className="text-xs text-text-muted">These details are shared by every project this person is on.</p>
-        <ContactForm
-          initial={row.contact}
-          emailLocked={Boolean(row.contact.userEmail)}
-          submitLabel={saved ? "Saved" : "Save details"}
-          onSubmit={async (fields) => {
-            const res = await updateContactAction(row.contact.id, fields);
-            if (!res.ok) return res;
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
-            onChanged();
-            return { ok: true };
-          }}
-        />
+        <ContactDetailsEditor contact={row.contact} onSaved={onChanged} />
       </section>
 
       <section className="border-t border-border pt-4">
