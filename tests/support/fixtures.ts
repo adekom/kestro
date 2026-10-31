@@ -2,7 +2,7 @@ import { adminAuth } from "@/server/firebaseAdmin";
 import { usersCol } from "@/server/paths";
 import type { AppUser, Role } from "@/lib/types";
 
-const PROJECT = "demo-kestro";
+const PROJECT = "demo-kestro-test";
 
 /** Wipes all emulator data between tests. */
 export async function resetEmulators(): Promise<void> {

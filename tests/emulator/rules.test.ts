@@ -9,7 +9,7 @@ let env: RulesTestEnvironment;
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
-    projectId: "demo-kestro",
+    projectId: "demo-kestro-test",
     firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8180 },
     storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9299 },
   });
