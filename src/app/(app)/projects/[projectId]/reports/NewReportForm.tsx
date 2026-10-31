@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { carryForwardCandidatesAction, createReportAction } from "@/app/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { StatusDef } from "@/lib/types";
@@ -27,14 +26,17 @@ export function NewReportForm({
   statuses,
   resolvedStatusId,
   defaultAuthor,
+  onCreated,
+  onCancel,
 }: {
   projectId: string;
   sources: Array<{ id: string; label: string }>;
   statuses: StatusDef[];
   resolvedStatusId: string;
   defaultAuthor: string;
+  onCreated: (reportId: string) => void;
+  onCancel: () => void;
 }) {
-  const router = useRouter();
   const [sourceId, setSourceId] = useState<string>(sources[0]?.id ?? "");
   // Filled in the browser: the server's clock may be in another time zone.
   const [visitDate, setVisitDate] = useState("");
@@ -95,7 +97,7 @@ export function NewReportForm({
       observationIds: ordered,
     });
     setBusy(false);
-    if (res.ok) router.push(`/projects/${projectId}/reports/${res.data}?tab=info`);
+    if (res.ok) onCreated(res.data);
     else setError(res.error);
   }
 
@@ -120,7 +122,7 @@ export function NewReportForm({
 
   return (
     <div className="space-y-4">
-      <section className="card grid grid-cols-4 gap-3 p-4">
+      <section className="grid grid-cols-4 gap-3">
         <div className="col-span-2">
           <label className="label" htmlFor="source">Start from</label>
           <select id="source" className="input" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
@@ -182,9 +184,12 @@ export function NewReportForm({
       )}
 
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
-      <button type="button" className="btn btn-primary" disabled={busy || !visitDate} onClick={submit}>
-        Create report
-      </button>
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-primary" disabled={busy || !visitDate} onClick={submit}>
+          Create report
+        </button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }

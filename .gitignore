@@ -59,3 +59,6 @@ credentials*.json
 
 # test emulator scratch space
 .emulator-tmp-test/
+
+# third-party reference material (not ours to redistribute)
+/example ui/

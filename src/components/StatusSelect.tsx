@@ -103,9 +103,13 @@ export function StatusSelect({
             else if (e.key === "Home") setActive(0);
             else if (e.key === "End") setActive(sorted.length - 1);
             else if (e.key === "Enter" || e.key === " ") choose(sorted[active]);
-            else if (e.key === "Escape" || e.key === "Tab") {
+            else if (e.key === "Escape") {
+              // Handled here: don't let the surrounding panel or dialog close too.
+              e.stopPropagation();
               setOpen(false);
-              if (e.key === "Escape") button.current?.focus();
+              button.current?.focus();
+            } else if (e.key === "Tab") {
+              setOpen(false);
               return;
             } else return;
             e.preventDefault();

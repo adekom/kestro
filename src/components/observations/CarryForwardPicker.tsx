@@ -1,32 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addMembershipsAction } from "@/app/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { StatusDef } from "@/lib/types";
 
-interface Candidate {
+export interface Candidate {
   id: string;
   number: string;
   title: string;
   statusId: string | null;
 }
 
-export function AddExistingObservations({
+/** Pick earlier project observations to add to a report (membership only; nothing is copied). */
+export function CarryForwardPicker({
   projectId,
   reportId,
-  reportHref,
   candidates,
   statuses,
+  onAdded,
+  onCancel,
 }: {
   projectId: string;
   reportId: string;
-  reportHref: string;
   candidates: Candidate[];
   statuses: StatusDef[];
+  onAdded: () => void;
+  onCancel: () => void;
 }) {
-  const router = useRouter();
   const statusById = new Map(statuses.map((s) => [s.id, s]));
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -41,11 +42,12 @@ export function AddExistingObservations({
 
   return (
     <div className="space-y-4">
-      <section className="card">
+      <section className="rounded-md border border-border">
         <div className="border-b border-border p-3">
           <label htmlFor="obs-lookup" className="sr-only">Search observations</label>
           <input id="obs-lookup" className="input max-w-sm" placeholder="Search by number or title" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
+        <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-sm">
           <tbody>
             {shown.map((c) => (
@@ -71,6 +73,7 @@ export function AddExistingObservations({
             ))}
           </tbody>
         </table>
+        </div>
       </section>
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
       <div className="flex gap-2">
@@ -84,13 +87,13 @@ export function AddExistingObservations({
             const ids = candidates.filter((c) => selected.has(c.id)).map((c) => c.id);
             const res = await addMembershipsAction(projectId, reportId, ids);
             setBusy(false);
-            if (res.ok) router.push(`${reportHref}?tab=obs&obs=${ids[0]}`);
+            if (res.ok) onAdded();
             else setError(res.error);
           }}
         >
           Add {selected.size || ""} to report
         </button>
-        <button type="button" className="btn" onClick={() => router.push(reportHref)}>Cancel</button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );

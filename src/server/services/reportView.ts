@@ -1,9 +1,10 @@
 import "server-only";
-import { attachmentsCol, observationDoc, photosCol, updatesCol } from "../paths";
-import { getMemberships, getReport, getStatusEvents, reportSequenceMap } from "./reports";
+import { attachmentsCol, membershipsCol, observationDoc, photosCol, updatesCol } from "../paths";
+import { UserError } from "../errors";
+import { getMemberships, getReport, getStatusEvents, listReports, reportSequenceMap } from "./reports";
 import { getProject } from "./projects";
 import { getSettings } from "./settings";
-import { applicableToReport, observationNumber, sortStatusEvents, statusOn } from "@/lib/domain";
+import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn } from "@/lib/domain";
 import type {
   Observation,
   ObservationUpdate,
@@ -49,37 +50,7 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
   ]);
 
   const observations = await Promise.all(
-    memberships.map(async (m): Promise<ObservationInReport | null> => {
-      const snap = await observationDoc(pid, m.observationId).get();
-      const observation = snap.data() as Observation | undefined;
-      if (!observation || observation.deletedAt) return null;
-      const [events, updatesSnap, attachmentsSnap] = await Promise.all([
-        getStatusEvents(pid, observation.id),
-        updatesCol(pid, observation.id).get(),
-        attachmentsCol(pid).where("observationId", "==", observation.id).get(),
-      ]);
-      const statusEvents = sortStatusEvents(applicableToReport(events, report));
-      const updates = applicableToReport(
-        updatesSnap.docs.map((d) => d.data() as ObservationUpdate),
-        report,
-      ).sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
-      const attachments = applicableToReport(
-        attachmentsSnap.docs.map((d) => d.data() as PhotoAttachment).filter((a) => !a.detachedAt),
-        report,
-      ).sort((a, b) => a.order - b.order);
-      const photos = await Promise.all(attachments.map((a) => photosCol(pid).doc(a.photoId).get()));
-      return {
-        observation,
-        number: observationNumber(observation, seqMap),
-        order: m.order,
-        statusId: statusOn(statusEvents, report.visitDate),
-        statusEvents,
-        updates,
-        attachments: attachments.flatMap((a, i) =>
-          photos[i].exists ? [{ ...a, photo: photos[i].data() as Photo }] : [],
-        ),
-      };
-    }),
+    memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, m.order)),
   );
 
   return {
@@ -87,5 +58,79 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
     project,
     report,
     observations: observations.filter((o): o is ObservationInReport => o !== null),
+  };
+}
+
+/**
+ * One observation as of a report's visit: status, updates and photos dated on
+ * or before the visit (or recorded in that report). Null if it was deleted.
+ */
+export async function observationAsOfReport(
+  pid: string,
+  oid: string,
+  report: Report,
+  seqMap: Map<string, number>,
+  order = 0,
+): Promise<ObservationInReport | null> {
+  const snap = await observationDoc(pid, oid).get();
+  const observation = snap.data() as Observation | undefined;
+  if (!observation || observation.deletedAt) return null;
+  const [events, updatesSnap, attachmentsSnap] = await Promise.all([
+    getStatusEvents(pid, oid),
+    updatesCol(pid, oid).get(),
+    attachmentsCol(pid).where("observationId", "==", oid).get(),
+  ]);
+  const statusEvents = sortStatusEvents(applicableToReport(events, report));
+  const updates = applicableToReport(
+    updatesSnap.docs.map((d) => d.data() as ObservationUpdate),
+    report,
+  ).sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
+  const attachments = applicableToReport(
+    attachmentsSnap.docs.map((d) => d.data() as PhotoAttachment).filter((a) => !a.detachedAt),
+    report,
+  ).sort((a, b) => a.order - b.order);
+  const photos = await Promise.all(attachments.map((a) => photosCol(pid).doc(a.photoId).get()));
+  return {
+    observation,
+    number: observationNumber(observation, seqMap),
+    order,
+    statusId: statusOn(statusEvents, report.visitDate),
+    statusEvents,
+    updates,
+    attachments: attachments.flatMap((a, i) => (photos[i].exists ? [{ ...a, photo: photos[i].data() as Photo }] : [])),
+  };
+}
+
+export interface ObservationDetail {
+  item: ObservationInReport;
+  /** The report whose visit this view and any edits (status, updates, photos) belong to. */
+  report: Report;
+  reportLabel: string;
+  statuses: OrgSettings["statuses"];
+  resolvedStatusId: string;
+  groups: Project["groups"];
+}
+
+/**
+ * Data for the observation editor panel. Without a report given, edits apply
+ * to the most recent report that includes the observation.
+ */
+export async function getObservationDetail(pid: string, oid: string, rid: string | null): Promise<ObservationDetail> {
+  const [settings, project, reports, seqMap] = await Promise.all([getSettings(), getProject(pid), listReports(pid), reportSequenceMap(pid)]);
+  let report = rid ? reports.find((r) => r.id === rid) : undefined;
+  if (!report) {
+    const memberOf = await Promise.all(reports.map(async (r) => ((await membershipsCol(pid, r.id).doc(oid).get()).exists ? r : null)));
+    report = memberOf.filter((r): r is Report => r !== null).at(-1);
+  }
+  if (!report) throw new UserError("This observation isn't in any report.");
+  const item = await observationAsOfReport(pid, oid, report, seqMap);
+  if (!item) throw new UserError("Observation not found.");
+  return {
+    item,
+    report,
+    reportLabel: `${reportLabel(project.reportPrefix, report.sequence)} · ${formatLongDate(report.visitDate)}`,
+    statuses: settings.statuses,
+    resolvedStatusId: settings.resolvedStatusId,
+    groups: [...project.groups].sort((a, b) => a.order - b.order),
   };
 }

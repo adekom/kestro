@@ -1,36 +1,37 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   attachPhotoAction,
   detachPhotoAction,
+  getPhotoLibraryAction,
   reorderAttachmentsAction,
   shareLinkAction,
   updateCaptionAction,
 } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
-import type { ObservationInReport, ReportView } from "@/server/services/reportView";
+import type { ObservationInReport } from "@/server/services/reportView";
 import type { Photo, PhotoAttachment } from "@/lib/types";
 
 export const photoUrl = (pid: string, photoId: string, v: "thumb" | "web" | "original" = "thumb") =>
   `/api/projects/${pid}/photos/${photoId}?v=${v}`;
 
+/** Photos on an observation, recorded against report `rid`. Calls `onChanged` after every change. */
 export function PhotoAttachments({
-  view,
+  pid,
+  rid,
   item,
-  library,
+  onChanged,
   onError,
 }: {
-  view: ReportView;
+  pid: string;
+  rid: string;
   item: ObservationInReport;
-  library: Photo[];
+  onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
-  const router = useRouter();
-  const pid = view.project.id;
-  const rid = view.report.id;
   const oid = item.observation.id;
+  const [library, setLibrary] = useState<Photo[] | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -53,20 +54,20 @@ export function PhotoAttachments({
       onError("Upload failed. Check your connection and try again.");
     }
     setUploading(null);
-    router.refresh();
+    onChanged();
   }
 
   const move = (index: number, delta: number) => {
     const ids = item.attachments.map((a) => a.id);
     [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
-    void reorderAttachmentsAction(pid, rid, ids);
+    void reorderAttachmentsAction(pid, rid, ids).then(onChanged);
   };
   const attachedPhotoIds = new Set(item.attachments.map((a) => a.photoId));
 
   return (
-    <section className="card p-4" aria-labelledby="photos-heading">
-      <h2 id="photos-heading" className="mb-3 text-sm font-semibold">Photos</h2>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+    <section aria-labelledby="photos-heading">
+      <h3 id="photos-heading" className="mb-2 text-sm font-semibold">Photos</h3>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
         {item.attachments.map((a, i) => (
           <AttachmentCard
             key={a.id}
@@ -78,6 +79,7 @@ export function PhotoAttachments({
             onDetach={async () => {
               const res = await detachPhotoAction(pid, rid, a.id);
               if (!res.ok) onError(res.error);
+              else onChanged();
             }}
             onError={onError}
           />
@@ -102,7 +104,20 @@ export function PhotoAttachments({
             Drop JPEG or PNG photos here, or{" "}
             <button type="button" className="link" onClick={() => input.current?.click()}>choose files</button>
             {" · "}
-            <button type="button" className="link" onClick={() => setPicking(!picking)}>reuse from project library</button>
+            <button
+              type="button"
+              className="link"
+              onClick={async () => {
+                setPicking(!picking);
+                if (!library) {
+                  const res = await getPhotoLibraryAction(pid);
+                  if (res.ok) setLibrary(res.data);
+                  else onError(res.error);
+                }
+              }}
+            >
+              reuse from project library
+            </button>
           </>
         )}
         <input
@@ -118,8 +133,9 @@ export function PhotoAttachments({
         />
       </div>
 
-      {picking && (
-        <ul className="mt-3 grid max-h-72 grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2 overflow-y-auto">
+      {picking && !library && <p className="mt-2 text-sm text-text-muted">Loading photos…</p>}
+      {picking && library && (
+        <ul className="mt-3 grid max-h-72 grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 overflow-y-auto">
           {library.filter((p) => !attachedPhotoIds.has(p.id)).map((p) => (
             <li key={p.id}>
               <button
@@ -129,6 +145,7 @@ export function PhotoAttachments({
                 onClick={async () => {
                   const res = await attachPhotoAction(pid, rid, oid, p.id);
                   if (!res.ok) onError(res.error);
+                  else onChanged();
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}

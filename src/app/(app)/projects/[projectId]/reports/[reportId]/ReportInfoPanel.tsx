@@ -7,6 +7,24 @@ import type { ReportView } from "@/server/services/reportView";
 import { contactName } from "@/lib/domain";
 import type { Attendee, Contact, SummaryOverride } from "@/lib/types";
 
+/** Card with a header bar, as used down the field report page. */
+export function Card({ title, titleFor, actions, children }: { title: string; titleFor?: string; actions?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="card">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        {titleFor ? (
+          <label htmlFor={titleFor} className="mr-auto text-sm font-semibold">{title}</label>
+        ) : (
+          <h2 className="mr-auto text-sm font-semibold">{title}</h2>
+        )}
+        {actions}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+/** The report's own information, autosaved: details, attendance, ongoing work. */
 export function ReportInfoPanel({
   view,
   contacts,
@@ -37,15 +55,15 @@ export function ReportInfoPanel({
   const unlisted = contacts.filter((c) => !info.attendees.some((a) => a.contactId === c.id));
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <>
       {conflict && (
         <div role="alert" className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger">
           Someone else changed this report. Your latest edits were not saved.{" "}
           <button className="underline" onClick={() => window.location.reload()}>Reload</button>
         </div>
       )}
-      <section className="card grid grid-cols-3 gap-3 p-4">
-        <h2 className="col-span-3 text-sm font-semibold">Report information</h2>
+      <Card title="Report details">
+        <div className="grid grid-cols-4 gap-3">
         <div>
           <label className="label" htmlFor="ri-date">Visit date</label>
           <input id="ri-date" type="date" className="input" value={info.visitDate} onChange={(e) => e.target.value && set("visitDate", e.target.value)} />
@@ -66,24 +84,10 @@ export function ReportInfoPanel({
             <option value="hide">Hide</option>
           </select>
         </div>
-      </section>
+        </div>
+      </Card>
 
-      <section className="card space-y-2 p-4">
-        <label className="text-sm font-semibold" htmlFor="ri-ongoing">Ongoing work</label>
-        {previousOngoingWork && (
-          <details className="rounded-md bg-surface-muted p-2 text-sm">
-            <summary className="cursor-pointer text-text-muted">Previous report’s ongoing work (review before reusing)</summary>
-            <p className="mt-2 whitespace-pre-wrap">{previousOngoingWork}</p>
-            <button type="button" className="btn mt-2" onClick={() => set("ongoingWork", info.ongoingWork ? `${info.ongoingWork}\n\n${previousOngoingWork}` : previousOngoingWork)}>
-              Insert into this report
-            </button>
-          </details>
-        )}
-        <textarea id="ri-ongoing" className="input min-h-36" value={info.ongoingWork} onChange={(e) => set("ongoingWork", e.target.value)} />
-      </section>
-
-      <section className="card p-4">
-        <h2 className="mb-2 text-sm font-semibold">Attendance</h2>
+      <Card title="Contacts present">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-text-muted">
             <tr>
@@ -131,7 +135,22 @@ export function ReportInfoPanel({
             + Other attendee
           </button>
         </div>
-      </section>
-    </div>
+      </Card>
+
+      <Card title="Ongoing work" titleFor="ri-ongoing">
+        <div className="space-y-2">
+        {previousOngoingWork && (
+          <details className="rounded-md bg-surface-muted p-2 text-sm">
+            <summary className="cursor-pointer text-text-muted">Previous report’s ongoing work (review before reusing)</summary>
+            <p className="mt-2 whitespace-pre-wrap">{previousOngoingWork}</p>
+            <button type="button" className="btn mt-2" onClick={() => set("ongoingWork", info.ongoingWork ? `${info.ongoingWork}\n\n${previousOngoingWork}` : previousOngoingWork)}>
+              Insert into this report
+            </button>
+          </details>
+        )}
+        <textarea id="ri-ongoing" className="input min-h-36" value={info.ongoingWork} onChange={(e) => set("ongoingWork", e.target.value)} />
+        </div>
+      </Card>
+    </>
   );
 }

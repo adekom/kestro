@@ -1,24 +1,15 @@
-import Link from "next/link";
 import { getProject } from "@/server/services/projects";
-import { getContactsByIds } from "@/server/services/contacts";
-import { ProjectSubpageHeader } from "../ProjectSubpageHeader";
-import { ProjectContactList } from "./ProjectContactList";
+import { listContacts } from "@/server/services/contacts";
+import { projectContactRows } from "@/server/services/tables";
+import { ContactsTable } from "./ContactsTable";
 
 export default async function ProjectContactsPage({ params }: { params: Promise<{ projectId: string }> }) {
-  const project = await getProject((await params).projectId);
-  const contacts = await getContactsByIds(project.contactIds);
-  const rows = project.contacts.flatMap((pc) => {
-    const contact = contacts.get(pc.contactId);
-    return contact ? [{ ...pc, contact }] : [];
-  });
+  const { projectId } = await params;
+  const [project, rows, firmContacts] = await Promise.all([getProject(projectId), projectContactRows(projectId), listContacts()]);
   return (
     <main className="page">
-      <ProjectSubpageHeader
-        project={project}
-        title="Project contacts"
-        action={<Link className="btn btn-primary" href={`/projects/${project.id}/contacts/add`}>Add contacts</Link>}
-      />
-      <ProjectContactList projectId={project.id} rows={rows} />
+      <h1 className="text-xl font-semibold">Contacts</h1>
+      <ContactsTable projectId={projectId} rows={rows} firmContacts={firmContacts} existingIds={project.contactIds} />
     </main>
   );
 }

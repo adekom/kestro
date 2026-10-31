@@ -14,6 +14,7 @@ import * as photos from "@/server/services/photos";
 import * as settings from "@/server/services/settings";
 import * as users from "@/server/services/users";
 import * as contacts from "@/server/services/contacts";
+import { getObservationDetail } from "@/server/services/reportView";
 import type { ProjectContact, Role, StatusDef } from "@/lib/types";
 
 const reportPath = (pid: string, rid: string) => `/projects/${pid}/reports/${rid}`;
@@ -296,5 +297,22 @@ export async function saveStatusesAction(
       return !used.empty;
     });
     revalidatePath("/", "layout");
+  });
+}
+
+// ---- Data for slide-in editors ----
+
+/** Observation editor data; without a report, edits go to its most recent report. */
+export async function getObservationDetailAction(pid: string, oid: string, rid: string | null) {
+  return toResult(async () => {
+    await requireUser();
+    return getObservationDetail(pid, oid, rid);
+  });
+}
+
+export async function getPhotoLibraryAction(pid: string) {
+  return toResult(async () => {
+    await requireUser();
+    return photos.listLibrary(pid);
   });
 }

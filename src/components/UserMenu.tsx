@@ -31,24 +31,27 @@ export function UserMenu({ firstName, email, isAdmin }: { firstName: string; ema
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-surface-muted"
+        className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white hover:bg-white/10"
       >
-        <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-subtle text-primary-hover">
+        <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white">
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
             <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0H3Z" />
           </svg>
         </span>
         <span className="font-medium">{firstName}</span>
-        <svg aria-hidden viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-text-muted">
+        <svg aria-hidden viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white/70">
           <path d="M5.5 7.5 10 12l4.5-4.5h-9Z" />
         </svg>
       </button>
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-border bg-surface py-1 shadow-lg">
           <div className="border-b border-border px-3 py-2 text-xs text-text-muted">{email}</div>
+          <Link role="menuitem" href="/contacts" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-surface-muted">
+            Firm contacts
+          </Link>
           {isAdmin && (
             <Link role="menuitem" href="/settings" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-surface-muted">
-              Settings
+              Kestro settings
             </Link>
           )}
           <button

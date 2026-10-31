@@ -4,7 +4,7 @@ import { resetEmulators } from "../support/fixtures";
 import { createProject, getProject, saveGroups } from "@/server/services/projects";
 import { carryForwardCandidates, createReport, getMemberships, listReports } from "@/server/services/reports";
 import { addUpdate, createObservation, setStatusInReport } from "@/server/services/observations";
-import { buildReportView } from "@/server/services/reportView";
+import { buildReportView, getObservationDetail } from "@/server/services/reportView";
 import { ensureShareToken, listAttachments, readPhotoFile, resolveShare, revokeShare, uploadPhoto, getPhoto } from "@/server/services/photos";
 import { renderReportPdf } from "@/server/pdf/renderReport";
 import { saveStatuses, getSettings } from "@/server/services/settings";
@@ -94,6 +94,21 @@ describe("observation numbering and carry-forward", () => {
     await report(pid, "2026-07-28", r1, [oid]);
     const all = await db().collection(`projects/${pid}/observations`).get();
     expect(all.size).toBe(1);
+  });
+});
+
+describe("observation editor data", () => {
+  it("records edits in the given report, or else the latest report that includes the observation", async () => {
+    const pid = await newProject();
+    const r1 = await report(pid, "2026-07-14");
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "open", groupId: null });
+    const r2 = await report(pid, "2026-07-28", r1, [oid]);
+    await report(pid, "2026-08-11", r2, []); // later report without it
+
+    const latest = await getObservationDetail(pid, oid, null);
+    expect(latest.report.id).toBe(r2);
+    expect(latest.reportLabel).toBe("Report 2 · July 28, 2026");
+    expect((await getObservationDetail(pid, oid, r1)).report.id).toBe(r1);
   });
 });
 

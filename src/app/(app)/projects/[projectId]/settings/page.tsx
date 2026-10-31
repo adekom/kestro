@@ -1,14 +1,15 @@
 import { getProject } from "@/server/services/projects";
-import { ProjectSubpageHeader } from "../ProjectSubpageHeader";
 import { ProjectDetailsForm } from "./ProjectDetailsForm";
+import { GroupsEditor } from "./GroupsEditor";
 
 export default async function ProjectSettingsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const project = await getProject((await params).projectId);
   return (
     <main className="page">
-      <ProjectSubpageHeader project={project} title="Project settings" />
-      <div className="form-width">
+      <h1 className="text-xl font-semibold">Project settings</h1>
+      <div className="form-width space-y-6">
         <ProjectDetailsForm project={project} />
+        <GroupsEditor key={project.groups.map((g) => g.id).join()} projectId={project.id} groups={project.groups} />
       </div>
     </main>
   );
