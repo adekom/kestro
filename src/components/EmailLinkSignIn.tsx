@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   clearClientAuth,
   completeMagicLink,
@@ -31,6 +31,9 @@ export function EmailLinkSignIn({
   const [phase, setPhase] = useState<Phase>("enter-email");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // A sign-in link works once. Guard against React running the effect twice
+  // in development, and against double-clicking Continue.
+  const linkUsed = useRef(false);
 
   useEffect(() => {
     if (!isMagicLink()) return;
@@ -42,10 +45,14 @@ export function EmailLinkSignIn({
   }, []);
 
   async function finish(address: string) {
+    if (linkUsed.current) return;
+    linkUsed.current = true;
     setPhase("working");
     setError(null);
     try {
       const token = await completeMagicLink(address);
+      // The link is now spent; drop it from the address bar so a reload can't retry it.
+      window.history.replaceState(null, "", window.location.pathname);
       const failure = await onToken(token);
       await clearClientAuth();
       if (failure) {
@@ -56,7 +63,10 @@ export function EmailLinkSignIn({
       }
     } catch (e) {
       setError(describeAuthError(e));
-      setPhase("enter-email");
+      // A mistyped email doesn't consume the link, so let the user try again.
+      const retryable = (e as { code?: string })?.code === "auth/invalid-email";
+      linkUsed.current = !retryable;
+      setPhase(retryable ? "confirm-email" : "enter-email");
     }
   }
 
