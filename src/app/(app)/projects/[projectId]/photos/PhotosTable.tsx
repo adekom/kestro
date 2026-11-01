@@ -84,20 +84,6 @@ function PhotoDetails({ projectId, row, isAdmin, onChanged }: { projectId: strin
   const reportLink = (p: PhotoRow["mostRecent"]) => (p ? `/projects/${projectId}/reports/${p.reportId}?obs=${p.observationId}` : null);
   return (
     <div className="space-y-6">
-      {(row.mostRecent || row.firstAdded) && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {row.mostRecent && (
-            <Link className="btn" href={reportLink(row.mostRecent)!}>
-              <FileText className="h-4 w-4" aria-hidden /> Go to most recent report that contains this photo
-            </Link>
-          )}
-          {row.firstAdded && (
-            <Link className="btn" href={reportLink(row.firstAdded)!}>
-              <FileText className="h-4 w-4" aria-hidden /> Go to report where this photo was first added
-            </Link>
-          )}
-        </div>
-      )}
       <a href={photoUrl(projectId, photo.id, "web")} target="_blank" rel="noopener" title="Open full image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photoUrl(projectId, photo.id, "web")} alt={photo.fileName} className="aspect-square w-full rounded-md object-cover" />
@@ -152,6 +138,20 @@ function PhotoDetails({ projectId, row, isAdmin, onChanged }: { projectId: strin
           ))}
         </ul>
       </section>
+      {(row.mostRecent || row.firstAdded) && (
+        <div className="flex flex-col items-start gap-2 border-t border-border pt-4">
+          {row.mostRecent && (
+            <Link className="btn" href={reportLink(row.mostRecent)!}>
+              <FileText className="h-4 w-4" aria-hidden /> Go to most recent report that contains this photo
+            </Link>
+          )}
+          {row.firstAdded && (
+            <Link className="btn" href={reportLink(row.firstAdded)!}>
+              <FileText className="h-4 w-4" aria-hidden /> Go to report where this photo was first added
+            </Link>
+          )}
+        </div>
+      )}
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
       <ConfirmDialog

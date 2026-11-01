@@ -62,3 +62,6 @@ credentials*.json
 
 # third-party reference material (not ours to redistribute)
 /example ui/
+
+# Real project exports used for import development (client data; never commit)
+/example project/
