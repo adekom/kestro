@@ -11,6 +11,21 @@ export function reportLabel(prefix: string, sequence: number): string {
  * the origin-local sequence (e.g. 18.3). Computed at read time from stable
  * IDs, so renumbering reports never rewrites observation documents.
  */
+/**
+ * Attendance in display order: by company, then first name (the default
+ * "attendanceOrder" setting), or as added. People without a company come last.
+ */
+export function sortAttendance<T>(list: T[], order: string, info: (a: T) => { company: string; firstName: string }): T[] {
+  if (order === "added") return list;
+  const cmp = (x: string, y: string) => x.localeCompare(y, undefined, { sensitivity: "base" });
+  return [...list].sort((a, b) => {
+    const p = info(a);
+    const q = info(b);
+    if (!p.company !== !q.company) return p.company ? -1 : 1;
+    return cmp(p.company, q.company) || cmp(p.firstName, q.firstName);
+  });
+}
+
 /** A contact's role on a project: the project's own, else their default role. */
 export const roleOnProject = (pc: { projectRole: string } | undefined, contact: { defaultRole?: string } | undefined) =>
   pc?.projectRole || contact?.defaultRole || "";

@@ -135,4 +135,22 @@ describe("company and project behaviour settings", () => {
     const pdf = await renderReportPdf(view, "https://reports.example.org");
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
   });
+
+  it("renders long reports with grouped observations, update timelines and attendee roles", async () => {
+    const pid = await newProject();
+    await saveGroups(pid, [{ name: "Roof" }, { name: "Walls" }]);
+    const groups = (await getProject(pid)).groups;
+    const r1 = await report(pid, "2026-07-14");
+    const long = "Sealant failure along the parapet joint. ".repeat(30);
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      ids.push(await createObservation(pid, r1, { title: "Item " + i, description: long, statusId: "nonconforming", groupId: groups[i % 2].id }));
+    }
+    const r2 = await report(pid, "2026-07-28", r1, ids);
+    for (const oid of ids) await addUpdate(pid, oid, r2, "Contractor resealed; recheck next visit.");
+    const view = await buildReportView(pid, r2);
+    const pdf = await renderReportPdf(view, "https://reports.example.org");
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
+  });
 });

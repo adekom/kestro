@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicableToReport, formatLongDate, formatShortDate, groupNameKey, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, runningOffsets, slug, statusOn } from "./domain";
+import { applicableToReport, formatLongDate, formatShortDate, groupNameKey, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, runningOffsets, slug, sortAttendance, statusOn } from "./domain";
 import type { StatusEvent } from "./types";
 
 const ev = (statusId: string, date: string, createdAt = `${date}T12:00:00Z`, id = `${statusId}-${date}`): StatusEvent => ({
@@ -112,5 +112,20 @@ describe("company formats", () => {
     const offsets = runningOffsets([{ originReportId: "r1" }, { originReportId: "r1" }, { originReportId: "r3" }, { originReportId: "r3" }], seq);
     expect(observationNumber(o, seq, { format: "running", offsets })).toBe("4");
     expect(observationNumber({ originReportId: "r1", originLocalSeq: 1 }, seq, { format: "running", offsets })).toBe("1");
+  });
+});
+
+describe("attendance order", () => {
+  const people = [
+    { company: "Build Co", firstName: "Zoe" },
+    { company: "", firstName: "Al" },
+    { company: "Acme", firstName: "Sam" },
+    { company: "build co", firstName: "Ann" },
+  ];
+  it("sorts by company, then first name, with no company last", () => {
+    expect(sortAttendance(people, "company", (p) => p).map((p) => p.firstName)).toEqual(["Sam", "Ann", "Zoe", "Al"]);
+  });
+  it("keeps the order added when chosen", () => {
+    expect(sortAttendance(people, "added", (p) => p)).toBe(people);
   });
 });

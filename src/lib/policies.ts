@@ -59,6 +59,16 @@ export const POLICIES = {
       { value: "caption", label: "Caption only" },
     ],
   } as ChoiceDef,
+  attendanceOrder: {
+    kind: "choice",
+    section: "pdf",
+    label: "Attendance order",
+    default: "company",
+    options: [
+      { value: "company", label: "By company, then first name" },
+      { value: "added", label: "In the order added" },
+    ],
+  } as ChoiceDef,
   autoPhotoUpdate: bool("observations", "When a photo is added to an observation, automatically add an update if there isn't one already.", true),
   multipleUpdates: bool("observations", "Allow more than one update per observation in each report", false),
   carryResolved: bool("observations", "When carrying observations into a new report, include resolved ones by default", false),

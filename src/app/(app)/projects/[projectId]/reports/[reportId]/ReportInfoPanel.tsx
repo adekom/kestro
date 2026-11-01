@@ -7,7 +7,7 @@ import { updateReportInfoAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import { InlineDate, InlineText, InlineTextarea, InlineTime } from "@/components/ui/InlineEdit";
 import type { ReportView } from "@/server/services/reportView";
-import { contactName, roleOnProject } from "@/lib/domain";
+import { contactName, roleOnProject, sortAttendance } from "@/lib/domain";
 import type { Attendee, Contact } from "@/lib/types";
 
 /** Card with a header bar, as used down the field report page. */
@@ -120,7 +120,10 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
               </tr>
             </thead>
             <tbody>
-              {info.attendees.map((a) => {
+              {sortAttendance(info.attendees, view.settings.policies.attendanceOrder, (a) => {
+                const c = a.contactId ? contactById.get(a.contactId) : undefined;
+                return { company: shown(a).company, firstName: c ? c.firstName : a.name.trim().split(/\s+/)[0] ?? "" };
+              }).map((a) => {
                 const s = shown(a);
                 return (
                   <tr key={a.id} className="border-b border-border">

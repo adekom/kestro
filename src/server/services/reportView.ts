@@ -5,9 +5,10 @@ import { UserError } from "../errors";
 import { getMemberships, getReport, getStatusEvents, listReports, reportSequenceMap } from "./reports";
 import { getProject } from "./projects";
 import { getProjectSettings } from "./settings";
+import { getContactsByIds } from "./contacts";
 import { deletedReportIds } from "./reportDeletion";
 import { reportDisplayOrder } from "@/lib/reportOrder";
-import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn, type Numbering } from "@/lib/domain";
+import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn, type Numbering, contactName, roleOnProject } from "@/lib/domain";
 import type {
   Observation,
   ObservationUpdate,
@@ -35,6 +36,8 @@ export interface ReportView {
   project: Project;
   report: Report;
   observations: ObservationInReport[];
+  /** Each attendee's current details (from their contact when they have one) and role on the project. */
+  attendees: Record<string, { name: string; firstName: string; company: string; role: string }>;
   /** Display sequence of each report, for labeling history. */
   reportSequences: Record<string, number>;
 }
@@ -75,7 +78,20 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
     report.id,
     groupOrder,
   );
-  return { settings, project, report, observations: ordered.map((x) => x.item), reportSequences: Object.fromEntries(seqMap) };
+  const contacts = await getContactsByIds(report.attendees.flatMap((a) => (a.contactId ? [a.contactId] : [])));
+  const attendees = Object.fromEntries(
+    report.attendees.map((a) => {
+      const c = a.contactId ? contacts.get(a.contactId) : undefined;
+      const pc = project.contacts.find((x) => x.contactId === a.contactId);
+      return [a.id, {
+        name: c ? contactName(c) : a.name,
+        firstName: c ? c.firstName : a.name.trim().split(/\s+/)[0] ?? "",
+        company: c ? c.company : a.company,
+        role: a.contactId ? roleOnProject(pc, c) : "",
+      }];
+    }),
+  );
+  return { settings, project, report, observations: ordered.map((x) => x.item), attendees, reportSequences: Object.fromEntries(seqMap) };
 }
 
 /**
