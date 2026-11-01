@@ -138,11 +138,14 @@ export async function listUpdates(pid: string, oid: string): Promise<Observation
     .sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
 }
 
+/** Adds the observation's update for this visit. Each report holds at most one update per observation. */
 export async function addUpdate(pid: string, oid: string, rid: string, text: string): Promise<string> {
   if (!text.trim()) throw new UserError("Update text is required.");
   const report = await liveReport(pid, rid);
   const id = newId();
   await db().runTransaction(async (tx) => {
+    const existing = await tx.get(updatesCol(pid, oid).where("reportId", "==", rid).limit(1));
+    if (!existing.empty) throw new UserError("This observation already has an update for this visit. Edit that update instead.");
     const sameDay = await tx.get(updatesCol(pid, oid).where("date", "==", report.visitDate));
     const order = sameDay.docs.reduce((max, d) => Math.max(max, (d.data() as ObservationUpdate).order), -1) + 1;
     const update: ObservationUpdate = {

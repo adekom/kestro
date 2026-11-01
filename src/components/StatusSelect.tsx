@@ -23,7 +23,6 @@ export function StatusSelect({
   statuses,
   value,
   onChange,
-  resolvedStatusId,
   disabled = false,
   inline = false,
 }: {
@@ -31,7 +30,6 @@ export function StatusSelect({
   statuses: StatusDef[];
   value: string | null;
   onChange: (statusId: string) => void;
-  resolvedStatusId?: string;
   disabled?: boolean;
   /** Click-to-edit look: plain text until clicked (dashed outline and pencil on hover). */
   inline?: boolean;
@@ -65,7 +63,7 @@ export function StatusSelect({
     if (s.id !== value) onChange(s.id);
   };
 
-  const label = (s: StatusDef) => `${s.label}${s.id === resolvedStatusId ? " (resolved)" : ""}`;
+  const label = (s: StatusDef) => s.label;
 
   return (
     <div ref={root} className="relative">

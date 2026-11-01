@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { resetEmulators } from "../support/fixtures";
 import { createProject, getProject, saveGroups } from "@/server/services/projects";
 import { carryForwardCandidates, createReport, getMemberships, listReports } from "@/server/services/reports";
-import { addUpdate, createObservation, setStatusInReport, updateObservation } from "@/server/services/observations";
+import { addUpdate, createObservation, deleteUpdate, setStatusInReport, updateObservation } from "@/server/services/observations";
 import { buildReportView, getObservationDetail } from "@/server/services/reportView";
 import { ensureShareToken, listAttachments, readPhotoFile, resolveShare, revokeShare, uploadPhoto, getPhoto } from "@/server/services/photos";
 import { renderReportPdf } from "@/server/pdf/renderReport";
@@ -94,6 +94,22 @@ describe("observation numbering and carry-forward", () => {
     await report(pid, "2026-07-28", r1, [oid]);
     const all = await db().collection(`projects/${pid}/observations`).get();
     expect(all.size).toBe(1);
+  });
+});
+
+describe("updates", () => {
+  it("allows one update per observation per visit, again after it is deleted", async () => {
+    const pid = await newProject();
+    const r1 = await report(pid, "2026-07-14");
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "nonconforming", groupId: null });
+    const r2 = await report(pid, "2026-07-28", r1, [oid]);
+    const first = await addUpdate(pid, oid, r2, "Sealant applied");
+    await expect(addUpdate(pid, oid, r2, "Second note")).rejects.toThrow(/already has an update/);
+    await deleteUpdate(pid, oid, first);
+    await expect(addUpdate(pid, oid, r2, "Replacement")).resolves.toBeTruthy();
+    // Another visit can have its own update.
+    const r3 = await report(pid, "2026-08-11", r2, [oid]);
+    await expect(addUpdate(pid, oid, r3, "Later")).resolves.toBeTruthy();
   });
 });
 

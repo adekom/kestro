@@ -12,9 +12,9 @@ import { Modal } from "@/components/ui/Modal";
 import { NewObservationForm } from "@/components/observations/NewObservationForm";
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
 import { photoUrl } from "@/components/observations/PhotoAttachments";
-import { formatLongDate, reportLabel } from "@/lib/domain";
+import { formatLongDate, reportLabel, statusOn } from "@/lib/domain";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
-import type { Contact } from "@/lib/types";
+import type { Contact, StatusDef } from "@/lib/types";
 import { Card, ReportInfoPanel } from "./ReportInfoPanel";
 
 /**
@@ -134,6 +134,7 @@ export function FieldReportPage({
                         active={openId === o.observation.id}
                         onOpen={() => setOpenId((id) => (id === o.observation.id ? null : o.observation.id))}
                         move={moveControls(o)}
+                        statusById={statusById}
                       />
                     ))}
                   </div>
@@ -168,6 +169,7 @@ function ObservationCard({
   active,
   onOpen,
   move,
+  statusById,
 }: {
   projectId: string;
   item: ObservationInReport;
@@ -177,6 +179,7 @@ function ObservationCard({
   onOpen: () => void;
   /** Present only for this report's own observations. */
   move?: { up: (() => void) | null; down: (() => void) | null };
+  statusById: ReadonlyMap<string, StatusDef>;
 }) {
   const o = item.observation;
   return (
@@ -217,19 +220,35 @@ function ObservationCard({
     >
       <div className="flex items-start gap-3">
         <span className="shrink-0 font-semibold">{item.number}</span>
-        <span className="min-w-0 flex-1 font-semibold">{o.title}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">{o.title}</span>
+          <span className="block text-xs text-text-muted">{formatLongDate(o.originalDate)}</span>
+        </span>
         <StatusBadge status={status} />
       </div>
       {o.description && <p className="mt-2 text-sm whitespace-pre-wrap">{o.description}</p>}
       {item.updates.length > 0 && (
-        <ul className="mt-3 space-y-1 border-l-2 border-border pl-3 text-sm">
-          {item.updates.map((u) => (
-            <li key={u.id}>
-              <span className={`font-medium ${u.reportId === reportId ? "text-primary-hover" : "text-text-muted"}`}>{formatLongDate(u.date)}:</span>{" "}
-              {u.text}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-4">
+          <h4 className="mb-2 text-xs font-semibold tracking-wide text-text-muted uppercase">Updates</h4>
+          <ol>
+            {item.updates.map((u, i) => {
+              const color = statusById.get(statusOn(item.statusEvents, u.date) ?? "")?.color;
+              const last = i === item.updates.length - 1;
+              return (
+                <li key={u.id} className="relative pb-3 pl-6 text-sm last:pb-0">
+                  {!last && <span aria-hidden className="absolute top-3.5 bottom-0 left-[5px] w-0.5 bg-border" />}
+                  <span
+                    aria-hidden
+                    className="absolute top-1 left-0 h-3 w-3 rounded-full border-2 border-surface ring-1 ring-border"
+                    style={{ backgroundColor: color ?? "var(--color-surface)" }}
+                  />
+                  <div className={`text-xs font-semibold ${u.reportId === reportId ? "text-primary-hover" : "text-text-muted"}`}>{shortDate(u.date)}</div>
+                  <p className="whitespace-pre-wrap">{u.text}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       )}
       {item.attachments.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -245,4 +264,10 @@ function ObservationCard({
     </button>
     </div>
   );
+}
+
+/** "07/28/26" */
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return y && m && d ? `${m}/${d}/${y.slice(2)}` : iso;
 }

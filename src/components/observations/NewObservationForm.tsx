@@ -89,7 +89,7 @@ export function NewObservationForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="new-obs-status">Status</label>
-            <StatusSelect id="new-obs-status" statuses={statuses} value={statusId} onChange={setStatusId} resolvedStatusId={resolvedStatusId} />
+            <StatusSelect id="new-obs-status" statuses={statuses} value={statusId} onChange={setStatusId} />
           </div>
           {groups.length > 0 && (
             <div>

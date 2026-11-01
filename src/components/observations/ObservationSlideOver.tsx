@@ -110,7 +110,7 @@ function ObservationEditor({
   onChanged: () => void;
   onGone: () => void;
 }) {
-  const { item, report, statuses, resolvedStatusId, groups } = detail;
+  const { item, report, statuses, groups } = detail;
   const o = item.observation;
   const statusById = new Map(statuses.map((s) => [s.id, s]));
   // In a later report the original record is fixed: only updates and status change.
@@ -169,7 +169,6 @@ function ObservationEditor({
               id="obs-status"
               statuses={statuses}
               value={item.statusId}
-              resolvedStatusId={resolvedStatusId}
               onChange={(statusId) => run(setStatusAction(projectId, report.id, o.id, statusId))}
             />
           </div>
@@ -192,12 +191,13 @@ function ObservationEditor({
         )}
       </section>
 
+      {carriedForward && (
       <section aria-labelledby="history-heading" className="space-y-3">
         <h3 id="history-heading" className="field-inset text-sm font-semibold">History</h3>
         <ol>
           <TimelineEntry
             date={o.originalDate}
-            heading="Observation created"
+            heading={detail.reportLabels[o.originReportId] ?? ""}
             status={statusById.get(statusOn(item.statusEvents, o.originalDate) ?? "")}
             last={laterDates.length === 0}
           >
@@ -209,7 +209,7 @@ function ObservationEditor({
               <TimelineEntry
                 key={date}
                 date={date}
-                heading={updates.length ? "Update" : "Status changed"}
+                heading={detail.reportLabels[reportOn(item, date) ?? ""] ?? ""}
                 status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
                 last={i === laterDates.length - 1}
               >
@@ -231,7 +231,7 @@ function ObservationEditor({
           })}
         </ol>
         {/* Updates belong to later visits; the creating report holds the original description. */}
-        {carriedForward && !item.updates.some((u) => u.reportId === report.id) && (
+        {!item.updates.some((u) => u.reportId === report.id) && (
           <form
             className="space-y-2"
             onSubmit={async (e) => {
@@ -245,6 +245,7 @@ function ObservationEditor({
           </form>
         )}
       </section>
+      )}
 
       <PhotoAttachments pid={projectId} rid={report.id} item={item} onChanged={onChanged} onError={setError} />
 
@@ -305,12 +306,18 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
         {fact("Status", <StatusBadge status={statusById.get(item.statusId ?? "")} />)}
         {fact("Group", groups.find((g) => g.id === o.groupId)?.name ?? "None")}
       </section>
+      {o.originReportId === report.id ? (
+        <section>
+          <div className="label">Description</div>
+          <p className="field-inset py-2 text-sm whitespace-pre-wrap">{o.description || "—"}</p>
+        </section>
+      ) : (
       <section aria-labelledby="ro-history" className="space-y-3">
         <h3 id="ro-history" className="field-inset text-sm font-semibold">History</h3>
         <ol>
           <TimelineEntry
             date={o.originalDate}
-            heading="Observation created"
+            heading={detail.reportLabels[o.originReportId] ?? ""}
             status={statusById.get(statusOn(item.statusEvents, o.originalDate) ?? "")}
             last={laterDates.length === 0}
           >
@@ -322,7 +329,7 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
               <TimelineEntry
                 key={date}
                 date={date}
-                heading={updates.length ? "Update" : "Status changed"}
+                heading={detail.reportLabels[reportOn(item, date) ?? ""] ?? ""}
                 status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
                 last={i === laterDates.length - 1}
               >
@@ -332,6 +339,7 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
           })}
         </ol>
       </section>
+      )}
       {item.attachments.length > 0 && (
         <section aria-labelledby="ro-photos">
           <h3 id="ro-photos" className="field-inset mb-2 text-sm font-semibold">Photos</h3>
@@ -369,6 +377,11 @@ function historyDates(item: ObservationDetail["item"]): string[] {
   });
 }
 
+/** The report a later history entry was recorded in. */
+function reportOn(item: ObservationDetail["item"], date: string): string | null {
+  return item.updates.find((u) => u.date === date)?.reportId ?? item.statusEvents.find((e) => e.date === date)?.reportId ?? null;
+}
+
 /** One dot on the history timeline, joined to the next by a vertical line. */
 function TimelineEntry({
   date,
@@ -404,7 +417,7 @@ function TimelineEntry({
 /** An update recorded in this report: click to edit, icon to delete. */
 function EditableUpdate({ id, text, onSave, onDelete }: { id: string; text: string; onSave: (text: string) => Promise<boolean>; onDelete: () => void }) {
   return (
-    <div className="flex items-start gap-1">
+    <div className="-ml-[13px] flex items-start gap-1">
       <div className="min-w-0 flex-1">
         <InlineTextarea
           id={`update-${id}`}

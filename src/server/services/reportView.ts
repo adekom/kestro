@@ -121,6 +121,8 @@ export interface ObservationDetail {
   /** The report whose visit this view and any edits (status, updates, photos) belong to. */
   report: Report;
   reportLabel: string;
+  /** Current label of every live report, e.g. "Field Report 6". */
+  reportLabels: Record<string, string>;
   statuses: OrgSettings["statuses"];
   resolvedStatusId: string;
   groups: Project["groups"];
@@ -150,6 +152,7 @@ export async function getObservationDetail(pid: string, oid: string, rid: string
     item,
     report,
     reportLabel: `${reportLabel(project.reportPrefix, report.sequence)} · ${formatLongDate(report.visitDate)}`,
+    reportLabels: Object.fromEntries(reports.map((r) => [r.id, reportLabel(project.reportPrefix, r.sequence)])),
     statuses: settings.statuses,
     resolvedStatusId: settings.resolvedStatusId,
     groups: [...project.groups].sort((a, b) => a.order - b.order),
