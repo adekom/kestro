@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Link2, PenLine, Trash2, X } from "lucide-react";
+import { Copy, PenLine, Trash2, X } from "lucide-react";
 import { attachPhotoAction, deletePhotoAction, detachPhotoAction, getPhotoLibraryAction, shareLinkAction, updateCaptionAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -118,7 +118,7 @@ function PhotoRow({
           setTimeout(() => setCopied(false), 2000);
         }}
       >
-        <Link2 className={`h-4 w-4 ${copied ? "text-success" : ""}`} aria-hidden />
+        <Copy className={`h-4 w-4 ${copied ? "text-success" : ""}`} aria-hidden />
       </button>
       {!readOnly && (
         <>

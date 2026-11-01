@@ -203,7 +203,7 @@ function ObservationEditor({
       {carriedForward && (
       <section aria-labelledby="history-heading" className="space-y-3">
         <h3 id="history-heading" className="field-inset text-sm font-semibold">History</h3>
-        <ol>
+        <ol className="field-inset">
           <TimelineEntry
             date={o.originalDate}
             heading={detail.reportLabels[o.originReportId] ?? ""}
@@ -326,7 +326,7 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
       ) : (
       <section aria-labelledby="ro-history" className="space-y-3">
         <h3 id="ro-history" className="field-inset text-sm font-semibold">History</h3>
-        <ol>
+        <ol className="field-inset">
           <TimelineEntry
             date={o.originalDate}
             heading={detail.reportLabels[o.originReportId] ?? ""}

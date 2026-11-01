@@ -22,9 +22,11 @@ import {
   CENTERED,
   DEFAULT_COLOR,
   fontPx,
+  fromRgba,
   PALETTE,
   shapePaths,
   strokePx,
+  toRgba,
   translate,
   wrapText,
   type Crop,
@@ -176,7 +178,8 @@ export function MarkupEditor({
 
   const W = size?.w ?? 1;
   const H = size?.h ?? 1;
-  const selectedShape = shapes.find((s) => s.id === selected) ?? null;
+  // A selection is live only in the Select tool, where its handles show.
+  const selectedShape = tool === "select" ? (shapes.find((s) => s.id === selected) ?? null) : null;
 
   const commit = useCallback(
     (next: Shape[], before: Shape[] = shapes) => {
@@ -203,10 +206,10 @@ export function MarkupEditor({
     });
   }, [shapes]);
   const remove = useCallback(() => {
-    if (!selected) return;
+    if (!selected || tool !== "select") return;
     commit(shapes.filter((s) => s.id !== selected));
     setSelected(null);
-  }, [selected, shapes, commit]);
+  }, [selected, shapes, commit, tool]);
   const reorder = (toFront: boolean) => {
     if (!selectedShape) return;
     const rest = shapes.filter((s) => s.id !== selected);
@@ -699,9 +702,9 @@ function IconButton({ label, Icon, disabled, onClick }: { label: string; Icon: L
 
 function ColorChoice({ label, value, allowNone, onChange }: { label: string; value: string | null; allowNone?: boolean; onChange: (c: string | null) => void }) {
   const [open, setOpen] = useState(false);
-  const [hex, setHex] = useState(value ?? "");
+  const [text, setText] = useState(value ? toRgba(value) : "");
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => setHex(value ?? ""), [value]);
+  useEffect(() => setText(value ? toRgba(value) : ""), [value]);
   // Clicking elsewhere closes the choices.
   useEffect(() => {
     if (!open) return;
@@ -718,7 +721,7 @@ function ColorChoice({ label, value, allowNone, onChange }: { label: string; val
     <button
       key={c ?? "none"}
       type="button"
-      title={c ?? "None"}
+      title={c ? toRgba(c) : "None"}
       aria-label={current ? `${label} colour: ${c ?? "none"}. Change` : c ?? `No ${label.toLowerCase()}`}
       aria-expanded={current ? open : undefined}
       onClick={() => (current ? setOpen(!open) : choose(c))}
@@ -734,16 +737,19 @@ function ColorChoice({ label, value, allowNone, onChange }: { label: string; val
         <>
           {allowNone && !isCurrent(null) && swatch(null, false)}
           {PALETTE.filter((c) => !isCurrent(c)).map((c) => swatch(c, false))}
+          {/* Same height as the swatches, so opening the choices doesn't resize the group. */}
           <input
-            aria-label={`${label} hex colour`}
-            className="input w-24 py-1 font-mono text-xs"
-            value={hex}
-            placeholder={allowNone ? "none" : "#RRGGBB"}
-            onChange={(e) => setHex(e.target.value)}
+            aria-label={`${label} colour as rgba`}
+            title="rgba(red, green, blue, opacity), then Enter"
+            className="input h-6 w-44 px-1.5 py-0 font-mono text-xs"
+            value={text}
+            placeholder={allowNone ? "none" : "rgba(0, 0, 0, 1)"}
+            onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
-              if (/^#[0-9a-fA-F]{6}$/.test(hex)) choose(hex.toUpperCase());
-              else setHex(value ?? "");
+              const c = fromRgba(text);
+              if (c) choose(c);
+              else setText(value ? toRgba(value) : "");
             }}
           />
         </>

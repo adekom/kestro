@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bounds, cloudPath, cropPosition, fontPx, shapePaths, strokePx, translate, validateMarkup, wrapText, type Shape } from "./markup";
+import { bounds, cloudPath, cropPosition, fontPx, fromRgba, toRgba, shapePaths, strokePx, translate, validateMarkup, wrapText, type Shape } from "./markup";
 
 const rect: Shape = { id: "r", kind: "rect", x: 0.1, y: 0.2, w: 0.3, h: 0.4, stroke: "#E5352B", strokeWidth: "m", fill: null };
 const arrow: Shape = { id: "a", kind: "arrow", x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5, stroke: "#E5352B", strokeWidth: "l" };
@@ -68,5 +68,17 @@ describe("crop position", () => {
   it("becomes a CSS object-position", () => {
     expect(cropPosition({ crop: { x: 0, y: 0.5 } })).toBe("0% 50%");
     expect(cropPosition(null)).toBe("50% 50%");
+  });
+});
+
+describe("rgba colours", () => {
+  it("converts between rgba() and stored hex, with opacity", () => {
+    expect(toRgba("#E5352B")).toBe("rgba(229, 53, 43, 1)");
+    expect(fromRgba("rgba(229, 53, 43, 0.5)")).toBe("#E5352B80");
+    expect(toRgba("#E5352B80")).toBe("rgba(229, 53, 43, 0.5)");
+    expect(fromRgba("rgb(0,0,0)")).toBe("#000000");
+    expect(fromRgba("rgba(300, 0, 0, 1)")).toBeNull();
+    expect(fromRgba("red")).toBeNull();
+    expect(validateMarkup({ shapes: [{ ...rect, fill: "#E5352B80" }] })).not.toBeTypeOf("string");
   });
 });

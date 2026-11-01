@@ -81,9 +81,30 @@ const diagonal = (w: number, h: number) => Math.hypot(w, h);
 export const strokePx = (size: Size, w: number, h: number) => Math.max(1, STROKE[size] * diagonal(w, h));
 export const fontPx = (size: Size, w: number, h: number) => Math.max(8, FONT[size] * diagonal(w, h));
 
+// ---- Colours: stored as #RRGGBB(AA), shown and typed as rgba() ----
+
+/** "#E5352B80" → "rgba(229, 53, 43, 0.5)" */
+export function toRgba(hex: string): string {
+  const h = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const a = h.length === 8 ? Math.round((parseInt(h.slice(6, 8), 16) / 255) * 100) / 100 : 1;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/** "rgba(229, 53, 43, 0.5)" or "rgb(229, 53, 43)" → "#E5352B80"; null if not a valid colour. */
+export function fromRgba(text: string): string | null {
+  const m = text.trim().match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)$/i);
+  if (!m) return null;
+  const rgb = [m[1], m[2], m[3]].map(Number);
+  const a = m[4] === undefined ? 1 : Number(m[4]);
+  if (rgb.some((v) => v > 255) || a > 1) return null;
+  const hx = (v: number) => v.toString(16).padStart(2, "0").toUpperCase();
+  return `#${rgb.map(hx).join("")}${a >= 1 ? "" : hx(Math.round(a * 255))}`;
+}
+
 // ---- Validation (shapes arrive from the browser) ----
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
+const HEX = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/; // #RRGGBB or #RRGGBBAA
 const SIZES = new Set<Size>(["s", "m", "l"]);
 const isUnit = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= -0.05 && n <= 1.05;
 const isColor = (c: unknown) => typeof c === "string" && HEX.test(c);
