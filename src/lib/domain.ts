@@ -1,5 +1,5 @@
 // Pure domain rules, shared by server code, PDF rendering and tests.
-import type { IsoDate, Observation, Report, StatusEvent } from "./types";
+import type { IsoDate, Observation, Report, StatusEvent, DateFormat, NumberFormat } from "./types";
 
 /** Display label for a report, e.g. "Field Report 17". */
 export function reportLabel(prefix: string, sequence: number): string {
@@ -18,9 +18,40 @@ export const roleOnProject = (pc: { projectRole: string } | undefined, contact: 
 export function observationNumber(
   obs: Pick<Observation, "originReportId" | "originLocalSeq">,
   reportSequenceById: ReadonlyMap<string, number>,
+  numbering: Numbering = { format: "dot" },
 ): string {
   const seq = reportSequenceById.get(obs.originReportId);
-  return seq === undefined ? `?.${obs.originLocalSeq}` : `${seq}.${obs.originLocalSeq}`;
+  if (numbering.format === "running") {
+    const offset = numbering.offsets?.get(obs.originReportId);
+    return offset === undefined ? `?${obs.originLocalSeq}` : String(offset + obs.originLocalSeq);
+  }
+  const sep = numbering.format === "dash" ? "-" : ".";
+  return `${seq ?? "?"}${sep}${obs.originLocalSeq}`;
+}
+
+/** How observation numbers are written; running numbers need each report's offset (see runningOffsets). */
+export interface Numbering {
+  format: NumberFormat;
+  offsets?: ReadonlyMap<string, number>;
+}
+
+/**
+ * For running numbers (1, 2, 3… across the project): how many observations
+ * were created in reports before each report, in report order.
+ */
+export function runningOffsets(
+  observations: Array<Pick<Observation, "originReportId">>,
+  reportSequenceById: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const o of observations) counts.set(o.originReportId, (counts.get(o.originReportId) ?? 0) + 1);
+  const out = new Map<string, number>();
+  let total = 0;
+  for (const [rid] of [...reportSequenceById].sort((a, b) => a[1] - b[1])) {
+    out.set(rid, total);
+    total += counts.get(rid) ?? 0;
+  }
+  return out;
 }
 
 /** Order status events deterministically: by effective date, then creation time, then ID. */
@@ -69,12 +100,28 @@ export function emailKey(email: string): string {
 
 export const EMAIL_PATTERN = /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/;
 
-/** Long display date, e.g. "July 14, 2026". */
-export function formatLongDate(iso: IsoDate): string {
+// The company's date format. Kestro serves one company per deployment, so a
+// single process-wide value is enough: the server sets it whenever settings
+// are read, and the app layout sets it in the browser before rendering pages.
+let dateFormat: DateFormat = "us";
+export function setDateFormat(f: DateFormat | undefined): void {
+  if (f === "us" || f === "intl" || f === "iso") dateFormat = f;
+}
+
+/** Long display date: "July 14, 2026", "14 July 2026" or "2026-07-14", per the company setting. */
+export function formatLongDate(iso: IsoDate, format: DateFormat = dateFormat): string {
   const d = new Date(`${iso}T00:00:00Z`);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+  if (Number.isNaN(d.getTime())) return iso;
+  if (format === "iso") return iso.slice(0, 10);
+  return d.toLocaleDateString(format === "intl" ? "en-GB" : "en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+}
+
+/** Compact date: "07/28/26", "28/07/26" or "2026-07-28", per the company setting. */
+export function formatShortDate(iso: IsoDate, format: DateFormat = dateFormat): string {
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  if (format === "iso") return `${y}-${m}-${d.slice(0, 2)}`;
+  return format === "intl" ? `${d.slice(0, 2)}/${m}/${y.slice(2)}` : `${m}/${d.slice(0, 2)}/${y.slice(2)}`;
 }
 
 /** Comparison key for group names: unique ignoring case and surrounding/repeated spaces. */

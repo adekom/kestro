@@ -13,11 +13,14 @@ async function assertStatus(pid: string, statusId: string): Promise<void> {
   if (!statuses.some((s) => s.id === statusId)) throw new UserError("Unknown status.");
 }
 
-/** When a project defines groups, every observation must be in one of them. */
-function assertGroup(project: Project | undefined, groupId: string | null): void {
+/**
+ * A chosen group must be one of the project's. When the project defines groups
+ * and the "every observation must be in one" setting is on, a group is required.
+ */
+function assertGroup(project: Project | undefined, groupId: string | null, required: boolean): void {
   const groups = project?.groups ?? [];
-  if (groups.length === 0) return;
-  if (!groupId || !groups.some((g) => g.id === groupId)) throw new UserError("Choose a group for this observation.");
+  if (groupId && !groups.some((g) => g.id === groupId)) throw new UserError("Choose one of the project's groups.");
+  if (!groupId && required && groups.length > 0) throw new UserError("Choose a group for this observation.");
 }
 
 async function liveReport(pid: string, rid: string): Promise<Report> {
@@ -41,12 +44,13 @@ export interface NewObservationInput {
 export async function createObservation(pid: string, rid: string, input: NewObservationInput): Promise<string> {
   if (!input.title.trim()) throw new UserError("Observation title is required.");
   await assertStatus(pid, input.statusId);
+  const { requireGroup } = (await getProjectSettings(pid)).policies;
   const oid = newId();
   await db().runTransaction(async (tx) => {
     const reportRef = reportDoc(pid, rid);
     const report = (await tx.get(reportRef)).data() as Report | undefined;
     if (!report || report.deletedAt) throw new UserError("Report not found.");
-    assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, input.groupId);
+    assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, input.groupId, requireGroup);
     const last = await tx.get(membershipsCol(pid, rid).orderBy("order", "desc").limit(1));
     const order = last.empty ? 0 : (last.docs[0].data() as Membership).order + 1;
 
@@ -99,6 +103,7 @@ export async function updateObservation(
 ): Promise<number> {
   if (patch.title !== undefined && !patch.title.trim()) throw new UserError("Observation title is required.");
   if (patch.originalDate !== undefined && !isIsoDate(patch.originalDate)) throw new UserError("Invalid date.");
+  const { requireGroup } = (await getProjectSettings(pid)).policies;
   const clean: ObservationPatch = {
     ...patch,
     title: patch.title?.slice(0, 300),
@@ -111,7 +116,7 @@ export async function updateObservation(
     if (!obs || obs.deletedAt) throw new UserError("Observation not found.");
     if (obs.version !== expectedVersion) throw new ConflictError();
     if (clean.groupId !== undefined && (clean.groupId ?? null) !== (obs.groupId ?? null)) {
-      assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, clean.groupId ?? null);
+      assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, clean.groupId ?? null, requireGroup);
       regroupedIn = obs.originReportId;
     }
     const touchesOriginal = clean.title !== undefined || clean.description !== undefined || clean.originalDate !== undefined;
@@ -157,6 +162,7 @@ export async function listUpdates(pid: string, oid: string): Promise<Observation
 export async function addUpdate(pid: string, oid: string, rid: string, text: string): Promise<string> {
   if (!text.trim()) throw new UserError("Update text is required.");
   const report = await liveReport(pid, rid);
+  const { multipleUpdates } = (await getProjectSettings(pid)).policies;
   const id = newId();
   await db().runTransaction(async (tx) => {
     const obs = (await tx.get(observationDoc(pid, oid))).data() as Observation | undefined;
@@ -165,7 +171,7 @@ export async function addUpdate(pid: string, oid: string, rid: string, text: str
       throw new UserError("Updates are added in later reports. In the report where it was created, edit the observation's description instead.");
     }
     const existing = await tx.get(updatesCol(pid, oid).where("reportId", "==", rid).limit(1));
-    if (!existing.empty) throw new UserError("This observation already has an update for this visit. Edit that update instead.");
+    if (!existing.empty && !multipleUpdates) throw new UserError("This observation already has an update for this visit. Edit that update instead.");
     const sameDay = await tx.get(updatesCol(pid, oid).where("date", "==", report.visitDate));
     const order = sameDay.docs.reduce((max, d) => Math.max(max, (d.data() as ObservationUpdate).order), -1) + 1;
     const update: ObservationUpdate = {
@@ -183,9 +189,6 @@ export async function addUpdate(pid: string, oid: string, rid: string, text: str
   return id;
 }
 
-export const PHOTO_ADDED = "Photo added.";
-export const PHOTOS_ADDED = "Photos added.";
-
 /**
  * When the project's "automatically add update" setting is on: adding a photo
  * to an observation carried into report `rid` gives it an update saying so,
@@ -194,16 +197,17 @@ export const PHOTOS_ADDED = "Photos added.";
  * was created, whose photos belong to the original record.
  */
 export async function notePhotoAdded(pid: string, oid: string, rid: string): Promise<void> {
-  if (!(await getProjectSettings(pid)).autoPhotoUpdate) return;
+  const settings = await getProjectSettings(pid);
+  if (!settings.policies.autoPhotoUpdate) return;
   const obs = (await observationDoc(pid, oid).get()).data() as Observation | undefined;
   if (!obs || obs.deletedAt || obs.originReportId === rid) return;
   const existing = await updatesCol(pid, oid).where("reportId", "==", rid).limit(1).get();
   if (existing.empty) {
-    await addUpdate(pid, oid, rid, PHOTO_ADDED).catch(() => undefined); // someone else just added one
+    await addUpdate(pid, oid, rid, settings.photoAddedText).catch(() => undefined); // someone else just added one
     return;
   }
   const update = existing.docs[0];
-  if ((update.data() as ObservationUpdate).text === PHOTO_ADDED) await update.ref.update({ text: PHOTOS_ADDED, updatedAt: now() });
+  if ((update.data() as ObservationUpdate).text === settings.photoAddedText) await update.ref.update({ text: settings.photosAddedText, updatedAt: now() });
 }
 
 export async function editUpdate(pid: string, oid: string, updateId: string, text: string): Promise<void> {

@@ -8,7 +8,11 @@ import { InlineText } from "@/components/ui/InlineEdit";
 
 const PALETTE = ["#C2410C", "#B45309", "#2563EB", "#7C3AED", "#15803D", "#475569"];
 
-type SaveStatuses = (statuses: Array<{ id: string; label: string; color: string }>, resolvedIndex: number) => Promise<{ ok: true } | { ok: false; error: string }>;
+type SaveStatuses = (
+  statuses: Array<{ id: string; label: string; color: string }>,
+  resolvedIndex: number,
+  defaultIndex: number,
+) => Promise<{ ok: true } | { ok: false; error: string }>;
 
 /**
  * A status catalog (the company's, or a project's own). Exactly one status is
@@ -18,12 +22,15 @@ type SaveStatuses = (statuses: Array<{ id: string; label: string; color: string 
 export function StatusesEditor({
   statuses,
   resolvedStatusId,
-  onSave = (list, resolvedIndex) => saveStatusesAction(list, resolvedIndex),
+  defaultStatusId,
+  onSave = (list, resolvedIndex, defaultIndex) => saveStatusesAction(list, resolvedIndex, defaultIndex),
   embedded = false,
   lock,
 }: {
   statuses: StatusDef[];
   resolvedStatusId: string;
+  /** Status new observations start with. */
+  defaultStatusId?: string;
   onSave?: SaveStatuses;
   /** Inside another section: no card, heading or intro. */
   embedded?: boolean;
@@ -34,6 +41,8 @@ export function StatusesEditor({
   // `key` identifies a row on screen; `id` is empty until the status is saved.
   const [items, setItems] = useState(sorted.map(({ id, label, color }) => ({ key: id, id, label, color })));
   const [resolvedIndex, setResolvedIndex] = useState(Math.max(0, sorted.findIndex((s) => s.id === resolvedStatusId)));
+  // The default status is tracked by row, so moving rows keeps it.
+  const [defaultKey, setDefaultKey] = useState(sorted.find((x) => x.id === defaultStatusId)?.id ?? sorted[0]?.id ?? "");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const update = (i: number, patch: Partial<(typeof items)[number]>) => setItems(items.map((s, j) => (j === i ? { ...s, ...patch } : s)));
@@ -54,8 +63,8 @@ export function StatusesEditor({
             {lock}
           </div>
           <p className="field-inset mb-3 text-xs text-text-muted">
-            Renaming or recoloring keeps all history. The resolved status is excluded by default when carrying observations into
-            the next report. A status in use cannot be removed.
+            Renaming or recoloring keeps all history. New observations start with the default status. The resolved status is
+            excluded by default when carrying observations into the next report. A status in use cannot be removed.
           </p>
         </>
       )}
@@ -64,6 +73,7 @@ export function StatusesEditor({
           <tr>
             <th className="field-inset py-1 font-medium">Name</th>
             <th className="py-1 font-medium">Color</th>
+            <th className="py-1 font-medium">Default</th>
             <th className="py-1 font-medium">Resolved</th>
             <th />
           </tr>
@@ -81,6 +91,9 @@ export function StatusesEditor({
                 </div>
               </td>
               <td className="py-1.5">
+                <input type="radio" name="default-status" className="accent-primary" aria-label={`${s.label} is the default status`} checked={defaultKey === s.key} onChange={() => setDefaultKey(s.key)} />
+              </td>
+              <td className="py-1.5">
                 <input type="radio" name="resolved" className="accent-primary" aria-label={`${s.label} is the resolved status`} checked={resolvedIndex === i} onChange={() => setResolvedIndex(i)} />
               </td>
               <td className="py-1.5 text-right whitespace-nowrap">
@@ -89,7 +102,7 @@ export function StatusesEditor({
                 <button
                   type="button"
                   className="btn"
-                  disabled={items.length === 1 || resolvedIndex === i}
+                  disabled={items.length === 1 || resolvedIndex === i || defaultKey === s.key}
                   onClick={() => {
                     setItems(items.filter((_, j) => j !== i));
                     if (resolvedIndex > i) setResolvedIndex(resolvedIndex - 1);
@@ -111,7 +124,11 @@ export function StatusesEditor({
           type="button"
           className="btn btn-primary"
           onClick={async () => {
-            const res = await onSave(items.map(({ id, label, color }) => ({ id, label, color })), resolvedIndex);
+            const res = await onSave(
+              items.map(({ id, label, color }) => ({ id, label, color })),
+              resolvedIndex,
+              Math.max(0, items.findIndex((x) => x.key === defaultKey)),
+            );
             setMessage(res.ok ? { ok: true, text: "Statuses saved." } : { ok: false, text: res.error });
           }}
         >

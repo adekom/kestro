@@ -4,19 +4,18 @@ import { bucket } from "../firebaseAdmin";
 import { ensureShareToken } from "../services/photos";
 import { readAttachmentImage } from "../services/markup";
 import type { ReportView, ObservationInReport } from "../services/reportView";
-import { formatLongDate, reportLabel, slug } from "@/lib/domain";
+import { formatLongDate, formatShortDate, reportLabel, slug } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 
 // Single configurable template (spec §9). Text is real PDF text (selectable);
 // only photo thumbnails are images, each linked to the public photo viewer.
 
-const PAGE = { width: 612, height: 792 }; // US Letter, points
+const PAGES = { LETTER: { width: 612, height: 792 }, A4: { width: 595.28, height: 841.89 } }; // points
 const M = { top: 50, bottom: 60, left: 50, right: 50 };
-const CONTENT_W = PAGE.width - M.left - M.right;
 const META_W = 100;
-const BODY_X = M.left + META_W + 12;
-const BODY_W = PAGE.width - M.right - BODY_X;
-const THUMB = { w: 124, h: 93, gap: 10, captionH: 24 }; // three per row in the body column
+const THUMB_GAP = 10;
+/** Photos per row in the body column, by the "photo size in PDF" setting. */
+const PER_ROW: Record<string, number> = { s: 4, m: 3, l: 2 };
 
 const INK = "#222222";
 const MUTED = "#666666";
@@ -29,8 +28,16 @@ export function reportPdfFilename(view: ReportView): string {
 
 export async function renderReportPdf(view: ReportView, publicBaseUrl: string): Promise<Buffer> {
   const { settings, project, report } = view;
+  const show = settings.policies; // the project's settings in effect
+  const PAGE = PAGES[settings.pageSize] ?? PAGES.LETTER;
+  const CONTENT_W = PAGE.width - M.left - M.right;
+  const BODY_X = M.left + META_W + 12;
+  const BODY_W = PAGE.width - M.right - BODY_X;
+  const perRow = PER_ROW[show.photoSize] ?? 3;
+  const thumbW = Math.floor((BODY_W - THUMB_GAP * (perRow - 1)) / perRow);
+  const THUMB = { w: thumbW, h: Math.round(thumbW * 0.75), gap: THUMB_GAP, captionH: show.photoCaption === "both" ? 32 : 22 };
   const doc = new PDFDocument({
-    size: "LETTER",
+    size: settings.pageSize ?? "LETTER",
     margins: M,
     bufferPages: true,
     info: {
@@ -75,8 +82,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   }
   doc.font("Helvetica-Bold").fontSize(11).fillColor(INK).text(settings.name, M.left, headerTop, { width: CONTENT_W, align: "right" });
   doc.font("Helvetica").fontSize(8.5).fillColor(MUTED);
-  if (settings.fieldVisibility.address && settings.address) doc.text(settings.address, { width: CONTENT_W, align: "right" });
-  if (settings.fieldVisibility.contact && settings.contactLine) doc.text(settings.contactLine, { width: CONTENT_W, align: "right" });
+  if (show.showAddress && settings.address) doc.text(settings.address, { width: CONTENT_W, align: "right" });
+  if (show.showContact && settings.contactLine) doc.text(settings.contactLine, { width: CONTENT_W, align: "right" });
   doc.y = Math.max(doc.y, logoBottom) + 10;
   rule();
 
@@ -89,19 +96,22 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   const facts = [
     project.code && `Project no. ${project.code}`,
     project.address,
-    settings.fieldVisibility.author && report.authorName && `Prepared by ${report.authorName}`,
-    settings.includeWeather && report.weather?.trim() && `Weather: ${report.weather.trim()}`,
+    show.showAuthor && report.authorName && `Prepared by ${report.authorName}`,
+    show.weather && report.weather?.trim() && `Weather: ${report.weather.trim()}`,
   ].filter(Boolean);
   if (facts.length) doc.text(facts.join("  ·  "));
   doc.moveDown(0.8);
 
-  // ---- General information ----
-  if (settings.fieldVisibility.ongoingWork && report.ongoingWork.trim()) {
+  // ---- Sections, in the company's chosen order ----
+  const renderOngoingWork = () => {
+  if (show.showOngoingWork && report.ongoingWork.trim()) {
     heading("Ongoing work", 30);
     doc.font("Helvetica").fontSize(10).fillColor(INK).text(report.ongoingWork.trim(), M.left, doc.y, { width: CONTENT_W });
     doc.moveDown(0.8);
   }
-  if (settings.fieldVisibility.attendance && report.attendees.length) {
+  };
+  const renderAttendance = () => {
+  if (show.showAttendance && report.attendees.length) {
     heading("Attendance", 30);
     for (const a of report.attendees) {
       ensureSpace(14);
@@ -113,10 +123,9 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     }
     doc.moveDown(0.8);
   }
-
-  // ---- Optional summary ----
-  const showSummary = settings.showSummaryDefault; // the project's effective setting
-  if (showSummary && view.observations.length) {
+  };
+  const renderSummary = () => {
+  if (show.summary && view.observations.length) {
     heading("Summary of observations", 30);
     for (const o of view.observations) {
       ensureSpace(14);
@@ -129,8 +138,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     }
     doc.moveDown(0.8);
   }
-
-  // ---- Observations, optionally grouped ----
+  };
+  const renderObservations = async () => {
   rule();
   const groups = [...project.groups].sort((a, b) => a.order - b.order);
   const sections: Array<{ title: string | null; items: ObservationInReport[] }> = [];
@@ -143,7 +152,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     }
     const known = new Set(groups.map((g) => g.id));
     const rest = view.observations.filter((o) => !o.observation.groupId || !known.has(o.observation.groupId));
-    if (rest.length) sections.push({ title: "General", items: rest });
+    if (rest.length) sections.push({ title: settings.ungroupedLabel, items: rest });
   } else {
     sections.push({ title: null, items: view.observations });
   }
@@ -156,6 +165,14 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     for (const o of section.items) {
       await renderObservation(o);
     }
+  }
+  };
+
+  for (const section of settings.pdfSectionOrder) {
+    if (section === "ongoingWork") renderOngoingWork();
+    else if (section === "attendance") renderAttendance();
+    else if (section === "summary") renderSummary();
+    else await renderObservations();
   }
 
   // ---- Disclaimer ----
@@ -210,7 +227,6 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     if (currentPage() === startPage) doc.y = Math.max(doc.y, leftEnd);
 
     // Photos: thumbnails in rows, each kept with its caption and linked to the viewer.
-    const perRow = Math.max(1, Math.floor((BODY_W + THUMB.gap) / (THUMB.w + THUMB.gap)));
     for (let i = 0; i < o.attachments.length; i += perRow) {
       const row = o.attachments.slice(i, i + perRow);
       doc.moveDown(0.4);
@@ -227,10 +243,15 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
           doc.rect(x, y, THUMB.w, THUMB.h).lineWidth(0.5).strokeColor(RULE).stroke();
           doc.font("Helvetica-Oblique").fontSize(8).fillColor(MUTED).text("Image unavailable", x, y + THUMB.h / 2 - 4, { width: THUMB.w, align: "center" });
         }
-        if (a.caption) {
-          doc.font("Helvetica").fontSize(7.5).fillColor(MUTED).text(a.caption, x, y + THUMB.h + 3, {
+        let textY = y + THUMB.h + 3;
+        if (show.photoCaption !== "caption") {
+          doc.font("Helvetica-Bold").fontSize(7.5).fillColor(MUTED).text(formatShortDate(a.date), x, textY, { width: THUMB.w, lineBreak: false });
+          textY += 10;
+        }
+        if (show.photoCaption !== "date" && a.caption) {
+          doc.font("Helvetica").fontSize(7.5).fillColor(MUTED).text(a.caption, x, textY, {
             width: THUMB.w,
-            height: THUMB.captionH - 3,
+            height: y + THUMB.h + THUMB.captionH - textY,
             ellipsis: true,
           });
         }

@@ -21,6 +21,12 @@ export const photoUrl = (pid: string, photoId: string, v: "thumb" | "web" | "ori
 
 type Attachment = PhotoAttachment & { photo: Photo };
 
+/** Company settings the photo rows follow. */
+export interface PhotoOptions {
+  markup: { palette: string[]; defaultColor: string; defaultStroke: "s" | "m" | "l" };
+  revokeLinksOnRemove: boolean;
+}
+
 /**
  * Photos as compact rows: 50×50 thumbnail, caption, copy link, mark up,
  * remove, and a menu to delete the photo from the project. Captions, markup
@@ -31,6 +37,7 @@ export function PhotoRows({
   rid,
   attachments,
   readOnly = false,
+  options,
   onChanged,
   onError,
 }: {
@@ -39,6 +46,7 @@ export function PhotoRows({
   rid: string | null;
   attachments: Attachment[];
   readOnly?: boolean;
+  options?: PhotoOptions;
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
@@ -46,7 +54,7 @@ export function PhotoRows({
   return (
     <ul className="divide-y divide-border">
       {attachments.map((a) => (
-        <PhotoRow key={a.id} pid={pid} rid={rid} attachment={a} editable={!readOnly && a.reportId === rid} readOnly={readOnly} onChanged={onChanged} onError={onError} />
+        <PhotoRow key={a.id} pid={pid} rid={rid} attachment={a} editable={!readOnly && a.reportId === rid} readOnly={readOnly} options={options} onChanged={onChanged} onError={onError} />
       ))}
     </ul>
   );
@@ -58,6 +66,7 @@ function PhotoRow({
   attachment: a,
   editable,
   readOnly,
+  options,
   onChanged,
   onError,
 }: {
@@ -66,6 +75,7 @@ function PhotoRow({
   attachment: Attachment;
   editable: boolean;
   readOnly: boolean;
+  options?: PhotoOptions;
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
@@ -149,7 +159,10 @@ function PhotoRow({
           return null;
         }}
       >
-        <p>The photo stays in Project Photos and can be attached again. Public links already shared keep working.</p>
+        <p>
+          The photo stays in Project Photos and can be attached again.{" "}
+          {options?.revokeLinksOnRemove ? "Its public link will stop working." : "Public links already shared keep working."}
+        </p>
       </ConfirmDialog>
       <ConfirmDialog
         open={confirm === "delete"}
@@ -175,6 +188,9 @@ function PhotoRow({
           imageUrl={attachmentUrl(pid, a, "plain-web")}
           initial={a.markup?.shapes ?? []}
           initialCrop={a.markup?.crop ?? null}
+          palette={options?.markup.palette}
+          defaultColor={options?.markup.defaultColor}
+          defaultStroke={options?.markup.defaultStroke}
           onCancel={() => setMarking(false)}
           onSave={async (shapes, crop, rendered) => {
             const form = new FormData();

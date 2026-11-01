@@ -1,4 +1,5 @@
 import "server-only";
+import { numberingFor } from "./numbering";
 import { attachmentsCol, membershipsCol, observationDoc, photosCol, updatesCol } from "../paths";
 import { UserError } from "../errors";
 import { getMemberships, getReport, getStatusEvents, listReports, reportSequenceMap } from "./reports";
@@ -6,7 +7,7 @@ import { getProject } from "./projects";
 import { getProjectSettings } from "./settings";
 import { deletedReportIds } from "./reportDeletion";
 import { reportDisplayOrder } from "@/lib/reportOrder";
-import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn } from "@/lib/domain";
+import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn, type Numbering } from "@/lib/domain";
 import type {
   Observation,
   ObservationUpdate,
@@ -54,8 +55,9 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
     deletedReportIds(pid),
   ]);
 
+  const numbering = await numberingFor(pid, seqMap);
   const observations = await Promise.all(
-    memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, hidden, m.order)),
+    memberships.map((m) => observationAsOfReport(pid, m.observationId, report, seqMap, hidden, m.order, numbering)),
   );
 
   const live = observations.filter((o): o is ObservationInReport => o !== null);
@@ -88,6 +90,7 @@ export async function observationAsOfReport(
   seqMap: Map<string, number>,
   hidden: ReadonlySet<string>,
   order = 0,
+  numbering?: Numbering,
 ): Promise<ObservationInReport | null> {
   const snap = await observationDoc(pid, oid).get();
   const observation = snap.data() as Observation | undefined;
@@ -109,7 +112,7 @@ export async function observationAsOfReport(
   const photos = await Promise.all(attachments.map((a) => photosCol(pid).doc(a.photoId).get()));
   return {
     observation,
-    number: observationNumber(observation, seqMap),
+    number: observationNumber(observation, seqMap, numbering),
     order,
     statusId: statusOn(statusEvents, report.visitDate),
     statusEvents,
@@ -128,6 +131,14 @@ export interface ObservationDetail {
   statuses: OrgSettings["statuses"];
   resolvedStatusId: string;
   groups: Project["groups"];
+  /** More than one update per observation in a report is allowed. */
+  multipleUpdates: boolean;
+  /** Observations must be in a group when the project has groups. */
+  requireGroup: boolean;
+  /** Removing a photo also stops its public link working. */
+  revokeLinksOnRemove: boolean;
+  /** Markup editor defaults and palette. */
+  markup: { palette: string[]; defaultColor: string; defaultStroke: "s" | "m" | "l" };
 }
 
 /**
@@ -148,7 +159,7 @@ export async function getObservationDetail(pid: string, oid: string, rid: string
     report = memberOf.filter((r): r is Report => r !== null).at(-1);
   }
   if (!report) throw new UserError("This observation isn't in any report.");
-  const item = await observationAsOfReport(pid, oid, report, seqMap, hidden);
+  const item = await observationAsOfReport(pid, oid, report, seqMap, hidden, 0, await numberingFor(pid, seqMap));
   if (!item) throw new UserError("Observation not found.");
   return {
     item,
@@ -158,5 +169,9 @@ export async function getObservationDetail(pid: string, oid: string, rid: string
     statuses: settings.statuses,
     resolvedStatusId: settings.resolvedStatusId,
     groups: [...project.groups].sort((a, b) => a.order - b.order),
+    multipleUpdates: settings.policies.multipleUpdates,
+    requireGroup: settings.policies.requireGroup,
+    revokeLinksOnRemove: settings.revokeLinksOnRemove,
+    markup: { palette: settings.markupPalette, defaultColor: settings.markupDefaultColor, defaultStroke: settings.markupDefaultStroke },
   };
 }

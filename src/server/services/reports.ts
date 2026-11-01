@@ -1,4 +1,5 @@
 import "server-only";
+import { numberingFor } from "./numbering";
 import { db } from "../firebaseAdmin";
 import { runTransaction } from "../transactions";
 import {
@@ -97,6 +98,8 @@ export async function carryForwardCandidates(
   pid: string,
   sourceRid: string,
   resolvedStatusId: string,
+  /** The "include resolved ones by default" setting. */
+  includeResolved = false,
 ): Promise<{ fromSource: CarryForwardCandidate[]; older: CarryForwardCandidate[] }> {
   const [source, memberships, seqMap, obsSnap, hidden] = await Promise.all([
     getReport(pid, sourceRid),
@@ -106,14 +109,15 @@ export async function carryForwardCandidates(
     deletedReportIds(pid),
   ]);
   const observations = new Map(obsSnap.docs.map((d) => [d.id, d.data() as Observation]));
+  const numbering = await numberingFor(pid, seqMap);
   const toCandidate = async (o: Observation, inSource: boolean): Promise<CarryForwardCandidate> => {
     const events = await getStatusEvents(pid, o.id, hidden);
     return {
       observationId: o.id,
-      number: observationNumber(o, seqMap),
+      number: observationNumber(o, seqMap, numbering),
       title: o.title,
       statusId: statusOn(events, source.visitDate),
-      preselected: inSource && preselectForCarryForward(events, source.visitDate, resolvedStatusId),
+      preselected: inSource && (includeResolved || preselectForCarryForward(events, source.visitDate, resolvedStatusId)),
     };
   };
   const inSource = new Set(memberships.map((m) => m.observationId));

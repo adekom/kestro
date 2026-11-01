@@ -1,5 +1,6 @@
 "use client";
 
+import { useCompany } from "@/components/CompanyProvider";
 import { useState } from "react";
 import { createProjectAction } from "@/app/actions";
 import { ContactPicker } from "@/components/ContactPicker";
@@ -16,7 +17,8 @@ export function NewProjectForm({
   onCreated: (projectId: string) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState({ name: "", code: "", address: "", description: "", reportPrefix: "Field Report " });
+  const { defaultReportPrefix } = useCompany();
+  const [form, setForm] = useState({ name: "", code: "", address: "", description: "", reportPrefix: defaultReportPrefix });
   // The person creating the project usually works on it, so start with them selected.
   const [selected, setSelected] = useState<ProjectContact[]>(currentContactId ? [{ contactId: currentContactId, projectRole: "" }] : []);
   const [error, setError] = useState<string | null>(null);

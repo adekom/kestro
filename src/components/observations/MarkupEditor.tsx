@@ -132,6 +132,9 @@ export function MarkupEditor({
   imageUrl,
   initial,
   initialCrop,
+  palette = PALETTE,
+  defaultColor = DEFAULT_COLOR,
+  defaultStroke = "m",
   onSave,
   onCancel,
 }: {
@@ -139,6 +142,10 @@ export function MarkupEditor({
   imageUrl: string;
   initial: Shape[];
   initialCrop: Crop | null;
+  /** The company's colours, default colour and default stroke width. */
+  palette?: string[];
+  defaultColor?: string;
+  defaultStroke?: Size;
   /** Receives the shapes, the crop (null when centered) and the rendered copy (null when there are no shapes). */
   onSave: (shapes: Shape[], crop: Crop | null, rendered: Blob | null) => Promise<string | null>;
   onCancel: () => void;
@@ -151,7 +158,7 @@ export function MarkupEditor({
   const [future, setFuture] = useState<Shape[][]>([]);
   const [tool, setTool] = useState<Tool>("select");
   const [selected, setSelected] = useState<string | null>(null);
-  const [style, setStyle] = useState<Style>({ stroke: DEFAULT_COLOR, strokeWidth: "m", fill: null, fontColor: DEFAULT_COLOR, fontSize: "m" });
+  const [style, setStyle] = useState<Style>({ stroke: defaultColor, strokeWidth: defaultStroke, fill: null, fontColor: defaultColor, fontSize: "m" });
   const [crop, setCrop] = useState<Crop>(initialCrop ?? CENTERED);
   const viewRef = useRef<HTMLDivElement>(null);
   const [side, setSide] = useState(0);
@@ -448,16 +455,16 @@ export function MarkupEditor({
         title={selectedShape ? "Changes apply to the selected markup" : "Style for new markups"}
       >
         <StyleGroup label="Stroke">
-          <ColorChoice label="Stroke" value={shown.stroke} onChange={(c) => applyStyle({ stroke: c! })} />
+          <ColorChoice label="Stroke" palette={palette} value={shown.stroke} onChange={(c) => applyStyle({ stroke: c! })} />
           <span className="h-6 w-px bg-border" aria-hidden />
           <WidthChoice value={shown.strokeWidth} onChange={(v) => applyStyle({ strokeWidth: v })} />
         </StyleGroup>
         <StyleGroup label="Fill" disabled={!fillable}>
-          <ColorChoice label="Fill" value={shown.fill} allowNone onChange={(c) => applyStyle({ fill: c })} />
+          <ColorChoice label="Fill" palette={palette} value={shown.fill} allowNone onChange={(c) => applyStyle({ fill: c })} />
         </StyleGroup>
         {isText && (
           <StyleGroup label="Text">
-            <ColorChoice label="Text" value={shown.fontColor} onChange={(c) => applyStyle({ fontColor: c! })} />
+            <ColorChoice label="Text" palette={palette} value={shown.fontColor} onChange={(c) => applyStyle({ fontColor: c! })} />
             <SizeChoice label="Text size" value={shown.fontSize} onChange={(v) => applyStyle({ fontSize: v })} />
           </StyleGroup>
         )}
@@ -700,7 +707,19 @@ function IconButton({ label, Icon, disabled, onClick }: { label: string; Icon: L
   );
 }
 
-function ColorChoice({ label, value, allowNone, onChange }: { label: string; value: string | null; allowNone?: boolean; onChange: (c: string | null) => void }) {
+function ColorChoice({
+  label,
+  palette,
+  value,
+  allowNone,
+  onChange,
+}: {
+  label: string;
+  palette: string[];
+  value: string | null;
+  allowNone?: boolean;
+  onChange: (c: string | null) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(value ? toRgba(value) : "");
   const box = useRef<HTMLDivElement>(null);
@@ -729,14 +748,14 @@ function ColorChoice({ label, value, allowNone, onChange }: { label: string; val
       style={c ? { backgroundColor: c } : undefined}
     />
   );
-  const current = value === null ? null : (PALETTE.find((c) => c === value.toUpperCase()) ?? value);
+  const current = value === null ? null : (palette.find((c) => c === value.toUpperCase()) ?? value);
   return (
     <div ref={box} className="flex items-center gap-1.5" role="group" aria-label={`${label} colour`}>
       {swatch(current, true)}
       {open && (
         <>
           {allowNone && !isCurrent(null) && swatch(null, false)}
-          {PALETTE.filter((c) => !isCurrent(c)).map((c) => swatch(c, false))}
+          {palette.filter((c) => !isCurrent(c)).map((c) => swatch(c, false))}
           {/* Same height as the swatches, so opening the choices doesn't resize the group. */}
           <input
             aria-label={`${label} colour as rgba`}

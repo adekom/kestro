@@ -5,7 +5,7 @@ import { createProject, getProject, setProjectOptions, setProjectStatuses, setSe
 import { createReport } from "@/server/services/reports";
 import { createObservation, editUpdate, listUpdates, deleteUpdate } from "@/server/services/observations";
 import { attachPhoto, uploadPhoto } from "@/server/services/photos";
-import { getProjectSettings, getSettings, updateSettings } from "@/server/services/settings";
+import { getProjectSettings, getSettings, setCompanyPolicy } from "@/server/services/settings";
 import { projectDoc } from "@/server/paths";
 
 beforeEach(resetEmulators);
@@ -18,20 +18,21 @@ const png = () => sharp({ create: { width: 40, height: 30, channels: 3, backgrou
 describe("company and project settings", () => {
   it("projects inherit company values until they choose their own", async () => {
     const pid = await newProject();
-    expect((await getProjectSettings(pid)).autoPhotoUpdate).toBe(true);
-    await updateSettings({ autoPhotoUpdate: false, includeWeather: true });
-    expect(await getProjectSettings(pid)).toMatchObject({ autoPhotoUpdate: false, includeWeather: true });
+    expect((await getProjectSettings(pid)).policies.autoPhotoUpdate).toBe(true);
+    await setCompanyPolicy("autoPhotoUpdate", false);
+    await setCompanyPolicy("weather", true);
+    expect((await getProjectSettings(pid)).policies).toMatchObject({ autoPhotoUpdate: false, weather: true });
     await setProjectOptions(pid, { autoPhotoUpdate: true });
-    expect((await getProjectSettings(pid)).autoPhotoUpdate).toBe(true);
+    expect((await getProjectSettings(pid)).policies.autoPhotoUpdate).toBe(true);
     await setProjectOptions(pid, { autoPhotoUpdate: null });
-    expect((await getProjectSettings(pid)).autoPhotoUpdate).toBe(false);
+    expect((await getProjectSettings(pid)).policies.autoPhotoUpdate).toBe(false);
   });
 
   it("carries over choices saved before company settings existed", async () => {
     const pid = await newProject();
     await projectDoc(pid).update({ overrides: null, summaryOverride: "hide", includeWeather: true });
     expect((await getProject(pid)).overrides).toEqual({ summary: false, weather: true });
-    expect(await getProjectSettings(pid)).toMatchObject({ showSummaryDefault: false, includeWeather: true });
+    expect((await getProjectSettings(pid)).policies).toMatchObject({ summary: false, weather: true });
   });
 
   it("locking uses the company value everywhere and blocks project choices", async () => {
@@ -40,11 +41,11 @@ describe("company and project settings", () => {
     await setSettingLock("summary", true);
     expect((await getSettings()).locks.summary).toBe(true);
     expect((await getProject(pid)).overrides).toEqual({ weather: true });
-    expect((await getProjectSettings(pid)).showSummaryDefault).toBe(true);
+    expect((await getProjectSettings(pid)).policies.summary).toBe(true);
     await expect(setProjectOptions(pid, { summary: false })).rejects.toThrow(/locked/);
     await setSettingLock("summary", false);
     await setProjectOptions(pid, { summary: false });
-    expect((await getProjectSettings(pid)).showSummaryDefault).toBe(false);
+    expect((await getProjectSettings(pid)).policies.summary).toBe(false);
   });
 
   it("locking statuses returns projects to the company list, unless they use project-only statuses", async () => {

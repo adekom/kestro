@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { effectiveValue, NO_LOCKS, projectChoice } from "./policies";
-import type { OrgSettings } from "./types";
+import { DEFAULT_POLICIES, effectiveValue, NO_LOCKS, projectChoice } from "./policies";
 
-const org = (locked: boolean) => ({ showSummaryDefault: true, includeWeather: false, autoPhotoUpdate: true, locks: { ...NO_LOCKS, weather: locked } }) as OrgSettings;
+const org = (locked: boolean) => ({ policies: { ...DEFAULT_POLICIES, weather: false }, locks: { ...NO_LOCKS, weather: locked } });
 
 describe("settings inheritance", () => {
   it("uses the project's choice when unlocked, the company value otherwise", () => {

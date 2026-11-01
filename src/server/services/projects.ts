@@ -7,7 +7,7 @@ import { UserError } from "../errors";
 import { groupNameKey } from "@/lib/domain";
 import { getContactsByIds } from "./contacts";
 import { getSettings, normalizeStatuses, projectOverrides, type StatusInput } from "./settings";
-import { BOOL_POLICIES, isLocked, POLICY_LABELS, type BoolPolicy, type PolicyKey } from "@/lib/policies";
+import { isLocked, isPolicyName, isValidValue, POLICIES, type PolicyKey, type PolicyName, type PolicyValue } from "@/lib/policies";
 import type { Group, Project, ProjectContact } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
@@ -53,7 +53,7 @@ export async function createProject(input: ProjectInput, contacts: ProjectContac
     code: "",
     address: "",
     description: "",
-    reportPrefix: "Field Report ",
+    reportPrefix: (await getSettings()).defaultReportPrefix,
     ...clean(input),
     groups: [],
     archived: false,
@@ -73,19 +73,18 @@ export async function updateProject(pid: string, patch: Partial<ProjectInput>): 
 }
 
 /** The project's choice per setting: a value, or null to inherit the company value. */
-export type ProjectOptions = Partial<Record<BoolPolicy, boolean | null>>;
+export type ProjectOptions = Partial<Record<PolicyName, PolicyValue | null>>;
 
 /** Sets or clears the project's own values. Refused for settings the company has locked. */
 export async function setProjectOptions(pid: string, options: ProjectOptions): Promise<void> {
   const [project, org] = await Promise.all([getProject(pid), getSettings()]);
   const next = { ...project.overrides };
   for (const [key, value] of Object.entries(options) as Array<[string, unknown]>) {
-    if (!(BOOL_POLICIES as readonly string[]).includes(key)) throw new UserError("Invalid project setting.");
-    const k = key as BoolPolicy;
-    if (value === null || value === undefined) delete next[k];
-    else if (typeof value !== "boolean") throw new UserError("Invalid project setting.");
-    else if (isLocked(org, k)) throw new UserError(`"${POLICY_LABELS[k]}" is locked by the company.`);
-    else next[k] = value;
+    if (!isPolicyName(key)) throw new UserError("Invalid project setting.");
+    if (value === null || value === undefined) delete next[key];
+    else if (!isValidValue(key, value)) throw new UserError("Invalid project setting.");
+    else if (isLocked(org, key)) throw new UserError(`"${POLICIES[key].label}" is locked by the company.`);
+    else (next as Record<string, PolicyValue>)[key] = value;
   }
   // Old fields are dropped once the project's choices are saved in the new form.
   await projectDoc(pid).update({ overrides: next, summaryOverride: FieldValue.delete(), includeWeather: FieldValue.delete(), updatedAt: now() });
@@ -97,7 +96,7 @@ export async function setProjectOptions(pid: string, options: ProjectOptions): P
  * while a project uses a status the company list doesn't have.
  */
 export async function setSettingLock(key: PolicyKey, locked: boolean): Promise<void> {
-  if (key !== "statuses" && !(BOOL_POLICIES as readonly string[]).includes(key)) throw new UserError("Invalid setting.");
+  if (key !== "statuses" && !isPolicyName(key)) throw new UserError("Invalid setting.");
   const org = await getSettings();
   const snap = await projectsCol().get();
   const projects = snap.docs.map((d) => normalize(d.data() as Project));
@@ -135,12 +134,12 @@ async function statusesUsedInProject(pid: string): Promise<Set<string>> {
 }
 
 /** Gives the project its own status list (start from the company's to keep history meaningful). */
-export async function setProjectStatuses(pid: string, input: StatusInput, resolvedIndex: number): Promise<void> {
+export async function setProjectStatuses(pid: string, input: StatusInput, resolvedIndex: number, defaultIndex = 0): Promise<void> {
   const project = await getProject(pid);
   if (isLocked(await getSettings(), "statuses")) throw new UserError("Observation statuses are locked by the company.");
   const current = project.statusOverride?.statuses ?? (await getSettings()).statuses;
   const used = await statusesUsedInProject(pid);
-  const next = await normalizeStatuses(input, resolvedIndex, current, async (id) => used.has(id));
+  const next = await normalizeStatuses(input, resolvedIndex, current, async (id) => used.has(id), defaultIndex);
   await projectDoc(pid).update({ statusOverride: next, updatedAt: now() });
 }
 

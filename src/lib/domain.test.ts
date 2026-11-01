@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicableToReport, groupNameKey, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, slug, statusOn } from "./domain";
+import { applicableToReport, formatLongDate, formatShortDate, groupNameKey, isIsoDate, observationNumber, preselectForCarryForward, reportLabel, runningOffsets, slug, statusOn } from "./domain";
 import type { StatusEvent } from "./types";
 
 const ev = (statusId: string, date: string, createdAt = `${date}T12:00:00Z`, id = `${statusId}-${date}`): StatusEvent => ({
@@ -92,4 +92,25 @@ describe("formatting helpers", () => {
     expect(isIsoDate("14/07/2026")).toBe(false);
   });
   it("makes safe filename slugs", () => expect(slug("800 Main St. / Phase 2")).toBe("800-Main-St-Phase-2"));
+});
+
+describe("company formats", () => {
+  it("writes dates in each format", () => {
+    expect(formatLongDate("2026-07-14", "us")).toBe("July 14, 2026");
+    expect(formatLongDate("2026-07-14", "intl")).toBe("14 July 2026");
+    expect(formatLongDate("2026-07-14", "iso")).toBe("2026-07-14");
+    expect(formatShortDate("2026-07-28", "us")).toBe("07/28/26");
+    expect(formatShortDate("2026-07-28", "intl")).toBe("28/07/26");
+    expect(formatShortDate("2026-07-28", "iso")).toBe("2026-07-28");
+  });
+  it("writes observation numbers in each format", () => {
+    const seq = new Map([["r1", 1], ["r2", 2], ["r3", 3]]);
+    const o = { originReportId: "r3", originLocalSeq: 2 };
+    expect(observationNumber(o, seq, { format: "dot" })).toBe("3.2");
+    expect(observationNumber(o, seq, { format: "dash" })).toBe("3-2");
+    // Two observations from report 1, none from report 2, so report 3's second is number 4.
+    const offsets = runningOffsets([{ originReportId: "r1" }, { originReportId: "r1" }, { originReportId: "r3" }, { originReportId: "r3" }], seq);
+    expect(observationNumber(o, seq, { format: "running", offsets })).toBe("4");
+    expect(observationNumber({ originReportId: "r1", originLocalSeq: 1 }, seq, { format: "running", offsets })).toBe("1");
+  });
 });

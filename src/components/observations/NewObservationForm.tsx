@@ -15,7 +15,9 @@ export function NewObservationForm({
   reports = [],
   statuses,
   resolvedStatusId,
+  defaultStatusId,
   groups,
+  requireGroup = true,
   onCreated,
   onCancel,
 }: {
@@ -24,7 +26,11 @@ export function NewObservationForm({
   reports?: Array<{ id: string; label: string }>;
   statuses: StatusDef[];
   resolvedStatusId: string;
+  /** Status new observations start with. */
+  defaultStatusId?: string;
   groups: Group[];
+  /** Every observation must be in a group (when there are groups). */
+  requireGroup?: boolean;
   onCreated: (observationId: string) => void;
   onCancel: () => void;
 }) {
@@ -32,8 +38,13 @@ export function NewObservationForm({
   const sorted = [...statuses].sort((a, b) => a.order - b.order);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [statusId, setStatusId] = useState(sorted.find((s) => s.id !== resolvedStatusId)?.id ?? sorted[0]?.id ?? "");
-  const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
+  const [statusId, setStatusId] = useState(
+    (defaultStatusId && sorted.some((s) => s.id === defaultStatusId) ? defaultStatusId : null) ??
+      sorted.find((s) => s.id !== resolvedStatusId)?.id ??
+      sorted[0]?.id ??
+      "",
+  );
+  const [groupId, setGroupId] = useState(requireGroup ? (groups[0]?.id ?? "") : "");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +105,8 @@ export function NewObservationForm({
           {groups.length > 0 && (
             <div>
               <label className="label" htmlFor="new-obs-group">Group</label>
-              <select id="new-obs-group" className="input" required value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+              <select id="new-obs-group" className="input" required={requireGroup} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                {!requireGroup && <option value="">No group</option>}
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </div>

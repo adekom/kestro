@@ -61,10 +61,10 @@ export async function setProjectOptionsAction(pid: string, options: projects.Pro
   });
 }
 
-export async function setProjectStatusesAction(pid: string, statuses: settings.StatusInput, resolvedIndex: number) {
+export async function setProjectStatusesAction(pid: string, statuses: settings.StatusInput, resolvedIndex: number, defaultIndex = 0) {
   return toResult(async () => {
     await requireUser();
-    await projects.setProjectStatuses(pid, statuses, resolvedIndex);
+    await projects.setProjectStatuses(pid, statuses, resolvedIndex, defaultIndex);
     revalidatePath(`/projects/${pid}`, "layout");
   });
 }
@@ -142,8 +142,8 @@ export async function removeProjectContactsAction(pid: string, contactIds: strin
 export async function carryForwardCandidatesAction(pid: string, sourceRid: string) {
   return toResult(async () => {
     await requireUser();
-    const { resolvedStatusId } = await settings.getProjectSettings(pid);
-    return reports.carryForwardCandidates(pid, sourceRid, resolvedStatusId);
+    const { resolvedStatusId, policies } = await settings.getProjectSettings(pid);
+    return reports.carryForwardCandidates(pid, sourceRid, resolvedStatusId, policies.carryResolved);
   });
 }
 
@@ -363,6 +363,14 @@ export async function updateSettingsAction(patch: settings.SettingsPatch) {
   });
 }
 
+export async function setCompanyPolicyAction(key: string, value: boolean | string) {
+  return toResult(async () => {
+    await requireUser("admin");
+    await settings.setCompanyPolicy(key, value);
+    revalidatePath("/", "layout");
+  });
+}
+
 export async function setSettingLockAction(key: PolicyKey, locked: boolean) {
   return toResult(async () => {
     await requireUser("admin");
@@ -374,13 +382,14 @@ export async function setSettingLockAction(key: PolicyKey, locked: boolean) {
 export async function saveStatusesAction(
   statuses: Array<Omit<StatusDef, "id" | "order"> & { id?: string }>,
   resolvedIndex: number,
+  defaultIndex = 0,
 ) {
   return toResult(async () => {
     await requireUser("admin");
     await settings.saveStatuses(statuses, resolvedIndex, async (statusId) => {
       const used = await db().collectionGroup("statusEvents").where("statusId", "==", statusId).limit(1).get();
       return !used.empty;
-    });
+    }, defaultIndex);
     revalidatePath("/", "layout");
   });
 }

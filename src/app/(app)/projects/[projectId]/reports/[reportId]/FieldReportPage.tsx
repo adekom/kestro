@@ -12,7 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { NewObservationForm } from "@/components/observations/NewObservationForm";
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
 import { attachmentUrl } from "@/components/observations/PhotoAttachments";
-import { formatLongDate, reportLabel, statusOn } from "@/lib/domain";
+import { formatLongDate, formatShortDate, reportLabel, statusOn } from "@/lib/domain";
 import { cropPosition } from "@/lib/markup";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
 import type { Contact, StatusDef } from "@/lib/types";
@@ -75,9 +75,9 @@ export function FieldReportPage({
     if (!grouped) return [{ title: null as string | null, items: view.observations }];
     const known = new Set(groups.map((g) => g.id));
     const out = groups.map((g) => ({ title: g.name as string | null, items: view.observations.filter((o) => o.observation.groupId === g.id) }));
-    out.push({ title: "General", items: view.observations.filter((o) => !o.observation.groupId || !known.has(o.observation.groupId)) });
+    out.push({ title: settings.ungroupedLabel, items: view.observations.filter((o) => !o.observation.groupId || !known.has(o.observation.groupId)) });
     return out.filter((s) => s.items.length);
-  }, [groups, view.observations]);
+  }, [groups, view.observations, settings.ungroupedLabel]);
 
   return (
     <SaveStatusProvider>
@@ -136,6 +136,7 @@ export function FieldReportPage({
                         onOpen={() => setOpenId((id) => (id === o.observation.id ? null : o.observation.id))}
                         move={moveControls(o)}
                         statusById={statusById}
+                        photoCaption={settings.policies.photoCaption}
                         updateLabel={(u) => {
                           const seq = view.reportSequences[u.reportId];
                           return seq ? `${formatLongDate(u.date)} · ${reportLabel(project.reportPrefix, seq)}` : formatLongDate(u.date);
@@ -156,7 +157,9 @@ export function FieldReportPage({
           reportId={report.id}
           statuses={settings.statuses}
           resolvedStatusId={settings.resolvedStatusId}
+          defaultStatusId={settings.defaultStatusId}
           groups={groups}
+          requireGroup={settings.policies.requireGroup}
           onCancel={closeModal}
           onCreated={afterChange}
         />
@@ -175,6 +178,7 @@ function ObservationCard({
   onOpen,
   move,
   statusById,
+  photoCaption,
   updateLabel,
 }: {
   projectId: string;
@@ -187,6 +191,8 @@ function ObservationCard({
   move?: { up: (() => void) | null; down: (() => void) | null };
   statusById: ReadonlyMap<string, StatusDef>;
   updateLabel: (u: ObservationInReport["updates"][number]) => string;
+  /** What shows under each photo: "both", "date" or "caption". */
+  photoCaption: string;
 }) {
   const o = item.observation;
   return (
@@ -238,8 +244,8 @@ function ObservationCard({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
               <figcaption className="mt-1 text-xs">
-                <span className="block font-semibold text-text-muted">{shortDate(a.date)}</span>
-                {a.caption && <span className="block">{a.caption}</span>}
+                {photoCaption !== "caption" && <span className="block font-semibold text-text-muted">{formatShortDate(a.date)}</span>}
+                {photoCaption !== "date" && a.caption && <span className="block">{a.caption}</span>}
               </figcaption>
             </figure>
           ))}
@@ -276,10 +282,4 @@ function ObservationCard({
       </div>
     </div>
   );
-}
-
-/** "07/28/26" */
-function shortDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return y && m && d ? `${m}/${d}/${y.slice(2)}` : iso;
 }

@@ -1,4 +1,4 @@
-import type { BoolPolicy, PolicyLocks } from "./policies";
+import type { PolicyLocks, PolicyValues } from "./policies";
 import type { Markup } from "./markup";
 
 // Shared domain types. Internal identity is always a UUID; human-facing
@@ -48,20 +48,52 @@ export interface OrgSettings {
   logoPath: string | null;
   disclaimer: string;
   footerText: string;
-  /** Company value of the "summary" setting. */
-  showSummaryDefault: boolean;
-  /** Company value of the "weather" setting. */
-  includeWeather: boolean;
-  /** Company value of the "autoPhotoUpdate" setting. */
-  autoPhotoUpdate: boolean;
+  /**
+   * Values of the settings projects inherit (lib/policies). From
+   * getProjectSettings these are the values in effect for that project.
+   */
+  policies: PolicyValues;
   /** Settings projects can't change (see lib/policies). */
   locks: PolicyLocks;
-  fieldVisibility: FieldVisibility;
+  /** @deprecated Replaced by policies.show*; read only to carry old choices over. */
+  fieldVisibility?: FieldVisibility;
+  /** @deprecated Replaced by policies.summary / .weather / .autoPhotoUpdate. */
+  showSummaryDefault?: boolean;
+  includeWeather?: boolean;
+  autoPhotoUpdate?: boolean;
+
+  // Company-only settings
+  /** "3.2", "3-2", or running numbers across the project. */
+  numberFormat: NumberFormat;
+  dateFormat: DateFormat;
+  pageSize: PageSize;
+  /** Report label prefix given to new projects. */
+  defaultReportPrefix: string;
+  /** Heading for observations without a group, in projects that have groups. */
+  ungroupedLabel: string;
+  /** Text of the automatic update for the first photo, and once there are more. */
+  photoAddedText: string;
+  photosAddedText: string;
+  /** Removing a photo from an observation also stops its public link working. */
+  revokeLinksOnRemove: boolean;
+  markupDefaultColor: string;
+  markupDefaultStroke: "s" | "m" | "l";
+  markupPalette: string[];
+  /** Order of the PDF sections between the report details and the disclaimer. */
+  pdfSectionOrder: PdfSection[];
+
   statuses: StatusDef[];
   /** Exactly one status is "resolved", identified by ID, never by label. */
   resolvedStatusId: string;
+  /** Status new observations start with. */
+  defaultStatusId: string;
   updatedAt: IsoTimestamp | null;
 }
+
+export type NumberFormat = "dot" | "dash" | "running";
+export type DateFormat = "us" | "intl" | "iso";
+export type PageSize = "LETTER" | "A4";
+export type PdfSection = "attendance" | "ongoingWork" | "observations" | "summary";
 
 export interface Group {
   id: string;
@@ -78,13 +110,13 @@ export interface Project {
   /** Prefix shown before the report number, e.g. "Field Report ". */
   reportPrefix: string;
   /** The project's own values for company settings; a missing key inherits the company value (see lib/policies). */
-  overrides: Partial<Record<BoolPolicy, boolean>>;
+  overrides: Partial<PolicyValues>;
   /** @deprecated Replaced by overrides.summary; read only to carry old choices over. */
   summaryOverride?: SummaryOverride;
   /** @deprecated Replaced by overrides.weather; read only to carry old choices over. */
   includeWeather?: boolean;
   /** Project-specific statuses; null uses the company standard. IDs match the company's where copied. Ignored while the company locks statuses. */
-  statusOverride?: { statuses: StatusDef[]; resolvedStatusId: string } | null;
+  statusOverride?: { statuses: StatusDef[]; resolvedStatusId: string; defaultStatusId?: string } | null;
   groups: Group[];
   archived: boolean;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */

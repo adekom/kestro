@@ -12,7 +12,7 @@ export default async function ProjectSettingsPage({ params }: { params: Promise<
       <div className="form-width space-y-6">
         <ProjectDetailsForm project={project} />
         <ProjectOptions project={project} org={settings} />
-        <ProjectStatuses project={project} company={{ statuses: settings.statuses, resolvedStatusId: settings.resolvedStatusId }} locked={settings.locks.statuses} />
+        <ProjectStatuses project={project} company={{ statuses: settings.statuses, resolvedStatusId: settings.resolvedStatusId, defaultStatusId: settings.defaultStatusId }} locked={settings.locks.statuses} />
         <GroupsEditor key={project.groups.map((g) => g.id).join()} projectId={project.id} groups={project.groups} />
         <ArchiveProject project={project} />
       </div>

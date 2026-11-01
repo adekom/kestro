@@ -111,6 +111,7 @@ function ObservationEditor({
   onGone: () => void;
 }) {
   const { item, report, statuses, groups } = detail;
+  const photoOptions = { markup: detail.markup, revokeLinksOnRemove: detail.revokeLinksOnRemove };
   const o = item.observation;
   const statusById = new Map(statuses.map((s) => [s.id, s]));
   // In a later report the original record is fixed: only updates and status change.
@@ -176,9 +177,9 @@ function ObservationEditor({
               <InlineSelect
                 id="obs-group"
                 value={fields.groupId ?? ""}
-                placeholder="Choose a group"
+                placeholder={detail.requireGroup ? "Choose a group" : "No group"}
                 onChange={(v) => setFields({ ...fields, groupId: v || null })}
-                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                options={[...(detail.requireGroup ? [] : [{ value: "", label: "No group" }]), ...groups.map((g) => ({ value: g.id, label: g.name }))]}
               />
             </div>
           )}
@@ -195,7 +196,7 @@ function ObservationEditor({
       {!carriedForward && (
         <section aria-labelledby="photos-heading" className="space-y-2">
           <h3 id="photos-heading" className="field-inset text-sm font-semibold">Photos</h3>
-          <PhotoRows pid={projectId} rid={report.id} attachments={item.attachments} onChanged={onChanged} onError={setError} />
+          <PhotoRows pid={projectId} rid={report.id} options={photoOptions} attachments={item.attachments} onChanged={onChanged} onError={setError} />
           <PhotoUpload pid={projectId} rid={report.id} observationId={o.id} attachedPhotoIds={attachedIds} onChanged={onChanged} onError={setError} />
         </section>
       )}
@@ -211,7 +212,7 @@ function ObservationEditor({
             last={laterDates.length === 0}
           >
             {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
-            <PhotoRows pid={projectId} rid={report.id} attachments={photosIn(item, o.originReportId)} onChanged={onChanged} onError={setError} />
+            <PhotoRows pid={projectId} rid={report.id} options={photoOptions} attachments={photosIn(item, o.originReportId)} onChanged={onChanged} onError={setError} />
           </TimelineEntry>
           {laterDates.map((date, i) => {
             const updates = item.updates.filter((u) => u.date === date);
@@ -237,13 +238,13 @@ function ObservationEditor({
                     <p key={u.id} className="whitespace-pre-wrap">{u.text}</p>
                   ),
                 )}
-                {rid && <PhotoRows pid={projectId} rid={report.id} attachments={photosIn(item, rid)} onChanged={onChanged} onError={setError} />}
+                {rid && <PhotoRows pid={projectId} rid={report.id} options={photoOptions} attachments={photosIn(item, rid)} onChanged={onChanged} onError={setError} />}
               </TimelineEntry>
             );
           })}
         </ol>
         {/* Updates belong to later visits; the creating report holds the original description. */}
-        {!item.updates.some((u) => u.reportId === report.id) && (
+        {(detail.multipleUpdates || !item.updates.some((u) => u.reportId === report.id)) && (
           <form
             className="space-y-2"
             onSubmit={async (e) => {

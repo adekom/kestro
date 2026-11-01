@@ -84,7 +84,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
             <label className="label" htmlFor="ri-author">Author</label>
             <InlineText id="ri-author" value={info.authorName} onChange={(v) => set("authorName", v)} />
           </div>
-          {view.settings.includeWeather && (
+          {view.settings.policies.weather && (
             <div className="col-span-3">
               <label className="label" htmlFor="ri-weather">Weather</label>
               <InlineText

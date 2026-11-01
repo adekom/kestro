@@ -1,4 +1,5 @@
 import "server-only";
+import { numberingFor } from "./numbering";
 import { getContactsByIds } from "./contacts";
 import { listProjectObservations } from "./observations";
 import { getProject } from "./projects";
@@ -25,6 +26,7 @@ export interface ObservationRow {
 export async function observationRows(pid: string): Promise<ObservationRow[]> {
   const [observations, reports, hidden] = await Promise.all([listProjectObservations(pid), listReports(pid), deletedReportIds(pid)]);
   const seqMap = new Map(reports.map((r) => [r.id, r.sequence]));
+  const numbering = await numberingFor(pid, seqMap);
   // Reports are in sequence order, so the last one seen for an observation is its latest.
   const latest = new Map<string, string>();
   const memberships = await Promise.all(reports.map((r) => getMemberships(pid, r.id)));
@@ -32,7 +34,7 @@ export async function observationRows(pid: string): Promise<ObservationRow[]> {
   return Promise.all(
     observations.map(async (o) => ({
       id: o.id,
-      number: observationNumber(o, seqMap),
+      number: observationNumber(o, seqMap, numbering),
       title: o.title,
       statusId: statusOn(await getStatusEvents(pid, o.id, hidden), "9999-12-31"),
       groupId: o.groupId,
@@ -86,6 +88,7 @@ export async function photoRows(pid: string): Promise<PhotoRow[]> {
     getProject(pid),
   ]);
   const seqMap = new Map(reports.map((r) => [r.id, r.sequence]));
+  const numbering = await numberingFor(pid, seqMap);
   const obsById = new Map(observations.map((o) => [o.id, o]));
   const usesByPhoto = new Map<string, PhotoUse[]>();
   for (const d of attachments.docs) {
@@ -96,7 +99,7 @@ export async function photoRows(pid: string): Promise<PhotoRow[]> {
     const use: PhotoUse = {
       attachmentId: a.id,
       observationId: o.id,
-      number: observationNumber(o, seqMap),
+      number: observationNumber(o, seqMap, numbering),
       title: o.title,
       reportLabel: seq ? reportLabel(project.reportPrefix, seq) : "Deleted report",
       caption: a.caption,

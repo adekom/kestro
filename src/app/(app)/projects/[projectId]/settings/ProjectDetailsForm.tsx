@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, Lock } from "lucide-react";
-import { BOOL_POLICIES, companyValue, isLocked, POLICY_LABELS, projectChoice } from "@/lib/policies";
+import { companyValue, isLocked, POLICIES, POLICY_NAMES, POLICY_SECTIONS, projectChoice, valueLabel, type PolicySection } from "@/lib/policies";
+import { fromSelect, policyOptions, toSelect } from "@/app/(app)/settings/CompanyPolicies";
 import { setProjectArchivedAction, setProjectOptionsAction, setProjectStatusesAction, updateProjectAction, revertToCompanyStatusesAction } from "@/app/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusesEditor } from "@/app/(app)/settings/StatusesEditor";
@@ -74,37 +75,39 @@ function LockedValue({ value }: { value: string }) {
 export function ProjectOptions({ project, org }: { project: Project; org: OrgSettings }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const yesNo = (v: boolean) => (v ? "Yes" : "No");
+  const sections = Object.keys(POLICY_SECTIONS) as PolicySection[];
 
   return (
     <section className="card space-y-3 p-4" aria-labelledby="options-heading">
       <h2 id="options-heading" className="field-inset text-sm font-semibold">Project Settings</h2>
-      {BOOL_POLICIES.map((k) => {
-        const own = projectChoice(org, project, k);
-        return (
-          <div key={k}>
-            <label className="label" htmlFor={`p-${k}`}>{POLICY_LABELS[k]}</label>
-            {isLocked(org, k) ? (
-              <LockedValue value={yesNo(companyValue(org, k))} />
-            ) : (
-              <InlineSelect
-                id={`p-${k}`}
-                value={own === null ? "inherit" : own ? "yes" : "no"}
-                onCommit={async (v) => {
-                  const res = await setProjectOptionsAction(project.id, { [k]: v === "inherit" ? null : v === "yes" });
-                  setError(res.ok ? null : res.error);
-                  if (res.ok) router.refresh();
-                }}
-                options={[
-                  { value: "inherit", label: `Company setting (${yesNo(companyValue(org, k))})` },
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                ]}
-              />
-            )}
-          </div>
-        );
-      })}
+      {sections.map((section) => (
+        <div key={section} className="space-y-3">
+          <h3 className="field-inset pt-2 text-xs font-semibold tracking-wide text-text-muted uppercase">{POLICY_SECTIONS[section]}</h3>
+          {POLICY_NAMES.filter((k) => POLICIES[k].section === section).map((k) => {
+            const own = projectChoice(org, project, k);
+            const company = companyValue(org, k);
+            return (
+              <div key={k}>
+                <label className="label" htmlFor={`p-${k}`}>{POLICIES[k].label}</label>
+                {isLocked(org, k) ? (
+                  <LockedValue value={valueLabel(k, company)} />
+                ) : (
+                  <InlineSelect
+                    id={`p-${k}`}
+                    value={own === null ? "inherit" : toSelect(k, own)}
+                    onCommit={async (v) => {
+                      const res = await setProjectOptionsAction(project.id, { [k]: v === "inherit" ? null : fromSelect(k, v) });
+                      setError(res.ok ? null : res.error);
+                      if (res.ok) router.refresh();
+                    }}
+                    options={[{ value: "inherit", label: `Company setting (${valueLabel(k, company)})` }, ...policyOptions(k)]}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
       {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
     </section>
   );
@@ -151,7 +154,15 @@ export function ArchiveProject({ project }: { project: Project }) {
  * own list (starting as a copy of the company's, so existing history keeps
  * its meaning).
  */
-export function ProjectStatuses({ project, company, locked }: { project: Project; company: { statuses: StatusDef[]; resolvedStatusId: string }; locked: boolean }) {
+export function ProjectStatuses({
+  project,
+  company,
+  locked,
+}: {
+  project: Project;
+  company: { statuses: StatusDef[]; resolvedStatusId: string; defaultStatusId: string };
+  locked: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const custom = locked ? null : (project.statusOverride ?? null);
@@ -169,7 +180,12 @@ export function ProjectStatuses({ project, company, locked }: { project: Project
           onCommit={async (v) => {
             const res =
               v === "custom"
-                ? await setProjectStatusesAction(project.id, company.statuses, Math.max(0, company.statuses.findIndex((s) => s.id === company.resolvedStatusId)))
+                ? await setProjectStatusesAction(
+                    project.id,
+                    company.statuses,
+                    Math.max(0, company.statuses.findIndex((s) => s.id === company.resolvedStatusId)),
+                    Math.max(0, company.statuses.findIndex((s) => s.id === company.defaultStatusId)),
+                  )
                 : await revertToCompanyStatusesAction(project.id);
             setError(res.ok ? null : res.error);
             if (res.ok) router.refresh();
@@ -188,8 +204,9 @@ export function ProjectStatuses({ project, company, locked }: { project: Project
           embedded
           statuses={custom.statuses}
           resolvedStatusId={custom.resolvedStatusId}
-          onSave={async (list, resolvedIndex) => {
-            const res = await setProjectStatusesAction(project.id, list, resolvedIndex);
+          defaultStatusId={custom.defaultStatusId}
+          onSave={async (list, resolvedIndex, defaultIndex) => {
+            const res = await setProjectStatusesAction(project.id, list, resolvedIndex, defaultIndex);
             if (res.ok) router.refresh();
             return res;
           }}

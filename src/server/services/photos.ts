@@ -6,6 +6,7 @@ import { attachmentsCol, observationDoc, photoSharesCol, photosCol, reportDoc, s
 import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { notePhotoAdded } from "./observations";
+import { getSettings } from "./settings";
 import type { Observation, Photo, PhotoAttachment, PhotoShare, Report } from "@/lib/types";
 
 export const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
@@ -139,10 +140,13 @@ export async function updateCaption(pid: string, attachmentId: string, caption: 
 }
 
 /**
- * Detaches a photo from an observation. The file stays in the project library
- * and existing public links keep working (they appear in exported PDFs).
+ * Detaches a photo from an observation. The file stays in the project library.
+ * Existing public links keep working (they appear in exported PDFs) unless the
+ * company has chosen to revoke them on removal.
  */
 export async function detachPhoto(pid: string, attachmentId: string): Promise<void> {
+  // Optionally (company setting) the public link stops working too.
+  if ((await getSettings()).revokeLinksOnRemove) await revokeShare(pid, attachmentId);
   await attachmentsCol(pid).doc(attachmentId).update({ detachedAt: now(), updatedAt: now() });
 }
 

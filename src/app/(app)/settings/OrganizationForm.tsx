@@ -3,16 +3,8 @@
 import { useState } from "react";
 import { updateSettingsAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
-import type { FieldVisibility, OrgSettings } from "@/lib/types";
+import type { OrgSettings } from "@/lib/types";
 import { InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
-
-const VISIBILITY_LABELS: Record<keyof FieldVisibility, string> = {
-  address: "Company address",
-  contact: "Company contact line",
-  attendance: "Attendance",
-  ongoingWork: "Ongoing work",
-  author: "Report author",
-};
 
 export function OrganizationForm({ settings }: { settings: OrgSettings }) {
   return (
@@ -29,7 +21,6 @@ function Form({ settings }: { settings: OrgSettings }) {
     contactLine: settings.contactLine,
     disclaimer: settings.disclaimer,
     footerText: settings.footerText,
-    fieldVisibility: settings.fieldVisibility,
   });
   useAutosave("org", form, (v) => updateSettingsAction(v));
   const text = (k: "name" | "address" | "contactLine" | "footerText", label: string) => (
@@ -55,22 +46,6 @@ function Form({ settings }: { settings: OrgSettings }) {
         <label className="label" htmlFor="org-disclaimer">Disclaimer (end of every report)</label>
         <InlineTextarea id="org-disclaimer" minHeight="min-h-24" value={form.disclaimer} onChange={(v) => setForm({ ...form, disclaimer: v })} />
       </div>
-      <fieldset>
-        <legend className="label">Show in PDF</legend>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          {(Object.keys(VISIBILITY_LABELS) as Array<keyof FieldVisibility>).map((k) => (
-            <label key={k} className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                className="accent-primary"
-                checked={form.fieldVisibility[k]}
-                onChange={(e) => setForm({ ...form, fieldVisibility: { ...form.fieldVisibility, [k]: e.target.checked } })}
-              />
-              {VISIBILITY_LABELS[k]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
     </section>
   );
 }

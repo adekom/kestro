@@ -16,6 +16,7 @@ export default async function StatusSettingsPage() {
         <StatusesEditor
           statuses={settings.statuses}
           resolvedStatusId={settings.resolvedStatusId}
+          defaultStatusId={settings.defaultStatusId}
           lock={<SettingLock setting="statuses" label="Observation statuses" locked={settings.locks.statuses} />}
         />
       </div>
