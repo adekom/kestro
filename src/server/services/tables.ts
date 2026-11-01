@@ -4,8 +4,10 @@ import { listProjectObservations } from "./observations";
 import { getProject } from "./projects";
 import { getMemberships, getStatusEvents, listReports } from "./reports";
 import { deletedReportIds } from "./reportDeletion";
-import { observationNumber, statusOn } from "@/lib/domain";
-import type { Contact } from "@/lib/types";
+import { observationNumber, reportLabel, statusOn } from "@/lib/domain";
+import type { Contact, Photo, PhotoAttachment } from "@/lib/types";
+import { listLibrary } from "./photos";
+import { attachmentsCol } from "../paths";
 
 export interface ObservationRow {
   id: string;
@@ -52,4 +54,53 @@ export async function projectContactRows(pid: string): Promise<ContactRow[]> {
     const contact = contacts.get(pc.contactId);
     return contact ? [{ contact, projectRole: pc.projectRole }] : [];
   });
+}
+
+export interface PhotoUse {
+  attachmentId: string;
+  observationId: string;
+  number: string;
+  title: string;
+  reportLabel: string;
+  caption: string;
+  detached: boolean;
+  /** A public link exists (it may already appear in exported PDFs). */
+  shared: boolean;
+}
+
+export interface PhotoRow {
+  photo: Photo;
+  uses: PhotoUse[];
+}
+
+/** Every photo in the project library, with where it is attached. */
+export async function photoRows(pid: string): Promise<PhotoRow[]> {
+  const [photos, attachments, observations, reports, project] = await Promise.all([
+    listLibrary(pid),
+    attachmentsCol(pid).get(),
+    listProjectObservations(pid),
+    listReports(pid),
+    getProject(pid),
+  ]);
+  const seqMap = new Map(reports.map((r) => [r.id, r.sequence]));
+  const obsById = new Map(observations.map((o) => [o.id, o]));
+  const usesByPhoto = new Map<string, PhotoUse[]>();
+  for (const d of attachments.docs) {
+    const a = d.data() as PhotoAttachment;
+    const o = obsById.get(a.observationId);
+    if (!o) continue; // observation deleted
+    const seq = seqMap.get(a.reportId);
+    const use: PhotoUse = {
+      attachmentId: a.id,
+      observationId: o.id,
+      number: observationNumber(o, seqMap),
+      title: o.title,
+      reportLabel: seq ? reportLabel(project.reportPrefix, seq) : "Deleted report",
+      caption: a.caption,
+      detached: Boolean(a.detachedAt),
+      shared: Boolean(a.shareToken),
+    };
+    usesByPhoto.set(a.photoId, [...(usesByPhoto.get(a.photoId) ?? []), use]);
+  }
+  return photos.map((photo) => ({ photo, uses: usesByPhoto.get(photo.id) ?? [] }));
 }

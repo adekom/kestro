@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronsUpDown, ClipboardList, FileText, Settings, Users, type LucideIcon } from "lucide-react";
+import { ChevronsUpDown, ClipboardList, FileText, Settings, Users, type LucideIcon, Images } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -15,6 +15,7 @@ interface ProjectOption {
 const SECTIONS = [
   { slug: "reports", label: "Field Reports", Icon: FileText },
   { slug: "observations", label: "Observations", Icon: ClipboardList },
+  { slug: "photos", label: "Project Photos", Icon: Images },
   { slug: "contacts", label: "Contacts", Icon: Users },
 ] as const;
 

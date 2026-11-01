@@ -293,11 +293,12 @@ export async function shareLinkAction(pid: string, attachmentId: string) {
   });
 }
 
-export async function revokeShareAction(pid: string, rid: string, attachmentId: string) {
+/** Admins only: the link stops working, including in PDFs already sent. */
+export async function revokeShareAction(pid: string, attachmentId: string) {
   return toResult(async () => {
     await requireUser("admin");
     await photos.revokeShare(pid, attachmentId);
-    revalidatePath(reportPath(pid, rid), "layout");
+    revalidatePath(`/projects/${pid}`, "layout");
   });
 }
 

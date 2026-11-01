@@ -7,6 +7,7 @@ import { addUpdate, createObservation, deleteUpdate, setStatusInReport, updateOb
 import { buildReportView, getObservationDetail } from "@/server/services/reportView";
 import { ensureShareToken, listAttachments, readPhotoFile, resolveShare, revokeShare, uploadPhoto, getPhoto } from "@/server/services/photos";
 import { renderReportPdf } from "@/server/pdf/renderReport";
+import { photoRows } from "@/server/services/tables";
 import { saveStatuses, getSettings } from "@/server/services/settings";
 import { db } from "@/server/firebaseAdmin";
 
@@ -215,6 +216,19 @@ describe("photos, public links and PDF", () => {
     expect((await readPhotoFile(photo, "original")).bytes.equals(png)).toBe(true);
     const thumb = await sharp((await readPhotoFile(photo, "thumb")).bytes).metadata();
     expect(Math.max(thumb.width!, thumb.height!)).toBeLessThanOrEqual(480);
+  });
+
+  it("lists library photos with where they are used and whether a public link exists", async () => {
+    const { pid, oid } = await setup();
+    const [row] = await photoRows(pid);
+    expect(row.photo.fileName).toBe("IMG_0001.png");
+    expect(row.uses).toMatchObject([{ number: "1.1", title: "Cracked tile", reportLabel: "Report 1", shared: false, detached: false }]);
+
+    const [attachment] = await listAttachments(pid, oid);
+    await ensureShareToken(pid, attachment.id);
+    expect((await photoRows(pid))[0].uses[0].shared).toBe(true);
+    await revokeShare(pid, attachment.id);
+    expect((await photoRows(pid))[0].uses[0].shared).toBe(false);
   });
 
   it("rejects non-image uploads", async () => {
