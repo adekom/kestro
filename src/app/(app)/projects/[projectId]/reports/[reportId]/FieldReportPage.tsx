@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { NewObservationForm } from "@/components/observations/NewObservationForm";
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
-import { photoUrl } from "@/components/observations/PhotoAttachments";
+import { attachmentUrl } from "@/components/observations/PhotoAttachments";
 import { formatLongDate, reportLabel, statusOn } from "@/lib/domain";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
 import type { Contact, StatusDef } from "@/lib/types";
@@ -253,7 +253,7 @@ function ObservationCard({
           {item.attachments.map((a) => (
             <figure key={a.id} className="w-32">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoUrl(projectId, a.photoId)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded object-cover" loading="lazy" />
+              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded object-cover" loading="lazy" />
               {a.caption && <figcaption className="mt-0.5 truncate text-xs text-text-muted">{a.caption}</figcaption>}
             </figure>
           ))}

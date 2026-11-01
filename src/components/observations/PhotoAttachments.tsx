@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, PenLine } from "lucide-react";
 import {
   attachPhotoAction,
   detachPhotoAction,
@@ -12,8 +12,14 @@ import {
 } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import { InlineText } from "@/components/ui/InlineEdit";
+import { Modal } from "@/components/ui/Modal";
+import { MarkupEditor } from "./MarkupEditor";
 import type { ObservationInReport } from "@/server/services/reportView";
 import type { Photo, PhotoAttachment } from "@/lib/types";
+
+/** Image for one use of a photo: marked-up when it has markup. The version keeps caches fresh. */
+export const attachmentUrl = (pid: string, a: { id: string; markupVersion?: number }, v: "thumb" | "web" | "plain-web" | "original" = "thumb") =>
+  `/api/projects/${pid}/attachments/${a.id}?v=${v}&m=${a.markupVersion ?? 0}`;
 
 export const photoUrl = (pid: string, photoId: string, v: "thumb" | "web" | "original" = "thumb") =>
   `/api/projects/${pid}/photos/${photoId}?v=${v}`;
@@ -84,6 +90,9 @@ export function PhotoAttachments({
               else onChanged();
             }}
             onError={onError}
+            canMarkup={a.reportId === rid}
+            reportId={rid}
+            onChanged={onChanged}
           />
         ))}
       </ul>
@@ -169,6 +178,9 @@ function AttachmentCard({
   onMove,
   onDetach,
   onError,
+  canMarkup,
+  reportId,
+  onChanged,
 }: {
   pid: string;
   attachment: PhotoAttachment & { photo: Photo };
@@ -177,17 +189,22 @@ function AttachmentCard({
   onMove: (delta: number) => void;
   onDetach: () => void;
   onError: (message: string | null) => void;
+  /** Markups are edited only in the report where the photo was attached. */
+  canMarkup: boolean;
+  reportId: string;
+  onChanged: () => void;
 }) {
   const [caption, setCaption] = useState(attachment.caption);
+  const [marking, setMarking] = useState(false);
   const [copied, setCopied] = useState(false);
   useAutosave(`caption-${attachment.id}`, caption, (v) => updateCaptionAction(pid, attachment.id, v));
 
   return (
     <li className="rounded-md border border-border bg-surface">
-      <a href={photoUrl(pid, attachment.photoId, "web")} target="_blank" rel="noopener" title="Open full image">
+      <a href={attachmentUrl(pid, attachment, "web")} target="_blank" rel="noopener" title="Open full image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={photoUrl(pid, attachment.photoId)}
+          src={attachmentUrl(pid, attachment)}
           alt={caption || attachment.photo.fileName}
           className="aspect-[4/3] w-full rounded-t-md object-cover"
           loading="lazy"
@@ -199,6 +216,11 @@ function AttachmentCard({
         <div className="flex flex-wrap items-center gap-x-2 text-xs">
           <button type="button" className="link disabled:invisible" disabled={first} onClick={() => onMove(-1)} aria-label="Move photo earlier"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
           <button type="button" className="link disabled:invisible" disabled={last} onClick={() => onMove(1)} aria-label="Move photo later"><ChevronRight className="h-4 w-4" aria-hidden /></button>
+          {canMarkup && (
+            <button type="button" className="link inline-flex items-center gap-0.5" onClick={() => setMarking(true)} title="Draw markups on this photo">
+              <PenLine className="h-3.5 w-3.5" aria-hidden /> Mark up
+            </button>
+          )}
           <a className="link" href={photoUrl(pid, attachment.photoId, "original")}>Original</a>
           <button
             type="button"
@@ -218,6 +240,30 @@ function AttachmentCard({
           </button>
         </div>
       </div>
+      <Modal open={marking} onClose={() => setMarking(false)} title={`Mark up ${attachment.photo.fileName}`} width="max-w-[95vw]" dismissible={false}>
+        <MarkupEditor
+          imageUrl={attachmentUrl(pid, attachment, "plain-web")}
+          initial={attachment.markup?.shapes ?? []}
+          onCancel={() => setMarking(false)}
+          onSave={async (shapes, rendered) => {
+            const form = new FormData();
+            form.set("markup", JSON.stringify({ shapes }));
+            form.set("reportId", reportId);
+            form.set("expectedVersion", String(attachment.markupVersion ?? 0));
+            if (rendered) form.set("image", rendered, "markup.jpg");
+            try {
+              const res = await fetch(`/api/projects/${pid}/attachments/${attachment.id}/markup`, { method: "POST", body: form });
+              const body = (await res.json().catch(() => ({}))) as { error?: string };
+              if (!res.ok) return body.error ?? "The markup could not be saved.";
+            } catch {
+              return "The markup could not be saved. Check your connection and try again.";
+            }
+            setMarking(false);
+            onChanged();
+            return null;
+          }}
+        />
+      </Modal>
     </li>
   );
 }

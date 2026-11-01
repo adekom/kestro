@@ -39,8 +39,8 @@ See [docs/development.md](docs/development.md) for the first-admin setup, tests 
 | M1 Foundation — scaffold, emulator, bootstrap, allowlist, rule/role tests | Implemented |
 | M2 Report editor — projects, reports, contacts, settings, autosave, statuses | Implemented |
 | M3 History / numbering — carry-forward, report deletion with gap-free renumbering | Implemented |
-| M4 Photos / markup — upload, library, captions, public viewer done; **markup editor pending** | In progress |
-| M5 PDF — template, linked thumbnails, pagination, preview = export | Implemented (annotated thumbnails follow M4) |
+| M4 Photos / markup — upload, library, captions, public viewer, markup editor | Implemented (HEIC not yet supported) |
+| M5 PDF — template, linked (marked-up) thumbnails, pagination, preview = export | Implemented |
 | M6 Migration / backup | Not started |
 | M7 Deployment | Guide written; not yet executed |
 

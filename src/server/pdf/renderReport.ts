@@ -1,7 +1,8 @@
 import "server-only";
 import PDFDocument from "pdfkit";
 import { bucket } from "../firebaseAdmin";
-import { ensureShareToken, readPhotoFile } from "../services/photos";
+import { ensureShareToken } from "../services/photos";
+import { readAttachmentImage } from "../services/markup";
 import type { ReportView, ObservationInReport } from "../services/reportView";
 import { formatLongDate, reportLabel, slug } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
@@ -218,7 +219,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       for (const [j, a] of row.entries()) {
         const x = BODY_X + j * (THUMB.w + THUMB.gap);
         try {
-          const { bytes } = await readPhotoFile(a.photo, "thumb");
+          const { bytes } = await readAttachmentImage(a, a.photo, "thumb");
           doc.image(bytes, x, y, { fit: [THUMB.w, THUMB.h], align: "center", valign: "center" });
           const token = await ensureShareToken(project.id, a.id);
           doc.link(x, y, THUMB.w, THUMB.h, `${publicBaseUrl.replace(/\/$/, "")}/p/${token}`);

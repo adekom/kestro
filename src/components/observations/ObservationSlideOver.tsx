@@ -21,7 +21,7 @@ import { FileText, Trash2 } from "lucide-react";
 import { formatLongDate, statusOn } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 import type { ObservationDetail } from "@/server/services/reportView";
-import { PhotoAttachments, photoUrl } from "./PhotoAttachments";
+import { PhotoAttachments, attachmentUrl } from "./PhotoAttachments";
 import Link from "next/link";
 
 /**
@@ -342,9 +342,9 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
             {item.attachments.map((a) => (
               <li key={a.id}>
-                <a href={photoUrl(projectId, a.photoId, "web")} target="_blank" rel="noopener" title="Open full image">
+                <a href={attachmentUrl(projectId, a, "web")} target="_blank" rel="noopener" title="Open full image">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photoUrl(projectId, a.photoId)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded-md object-cover" loading="lazy" />
+                  <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded-md object-cover" loading="lazy" />
                 </a>
                 {a.caption && <p className="mt-1 text-xs text-text-muted">{a.caption}</p>}
               </li>

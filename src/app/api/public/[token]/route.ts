@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { readPhotoFile, resolveShare } from "@/server/services/photos";
+import { resolveShare } from "@/server/services/photos";
+import { readAttachmentImage } from "@/server/services/markup";
 import { clientKey, rateLimited } from "@/server/rateLimit";
 
 const PRIVATE_HEADERS = {
@@ -19,9 +20,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const { token } = await ctx.params;
   const shared = await resolveShare(token);
   if (!shared) return new NextResponse("Not found", { status: 404, headers: PRIVATE_HEADERS });
-  const original = new URL(req.url).searchParams.get("v") === "original";
+  const v = new URL(req.url).searchParams.get("v");
+  const original = v === "original";
   try {
-    const { bytes, contentType } = await readPhotoFile(shared.photo, original ? "original" : "web");
+    const { bytes, contentType } = await readAttachmentImage(shared.attachment, shared.photo, original ? "original" : v === "plain" ? "plain-web" : "web");
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         ...PRIVATE_HEADERS,

@@ -1,3 +1,5 @@
+import type { Markup } from "./markup";
+
 // Shared domain types. Internal identity is always a UUID; human-facing
 // report and observation numbers are derived and may change (spec §4.1).
 
@@ -221,6 +223,12 @@ export interface PhotoAttachment {
   shareToken: string | null;
   /** Detached attachments are hidden in the app but keep previously exported links working. */
   detachedAt: IsoTimestamp | null;
+  /** Vector markups for this use of the photo (the original file is never changed). */
+  markup?: Markup | null;
+  /** Copies with the markup drawn in, rendered in the browser when saved. */
+  markupImages?: { web: string; thumb: string } | null;
+  /** Increments on every markup save (cache key and conflict check). */
+  markupVersion?: number;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
 }

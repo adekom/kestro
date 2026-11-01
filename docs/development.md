@@ -86,6 +86,16 @@ derived (EXIF-rotated). **HEIC/HEIF** is rejected with a message: the prebuilt `
 HEIC decoder. Fallback: export as JPEG before upload (Photos on macOS: *File → Export*; on iPhone set
 *Settings → Camera → Formats → Most Compatible*; on Windows use the Photos app *Save as*).
 
+### Photo markup
+
+Markups (`lib/markup.ts`) are vector shapes stored on the photo attachment, never in the photo: positions are
+fractions of the image, stroke and text sizes fractions of its diagonal, so they scale to any size. The editor
+(`components/observations/MarkupEditor.tsx`) draws them as SVG; on Save the browser renders the photo plus shapes
+to a canvas with the same path strings (Path2D) and fonts and uploads that copy with the shapes. The server
+(`server/services/markup.ts`) validates both, stores web and thumbnail versions, and serves them to the app, the
+PDF and the public viewer (which can toggle to the original). Markups are editable only from the report where the
+photo was attached; saving no shapes removes the copies. The uploaded original is never modified.
+
 ### PDF
 
 Rendered with pdfkit using the standard Helvetica fonts (real, selectable text). These fonts cover Western

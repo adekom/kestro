@@ -26,4 +26,6 @@ export const storagePaths = {
   web: (pid: string, photoId: string) => `projects/${pid}/photos/${photoId}/web.jpg`,
   thumb: (pid: string, photoId: string) => `projects/${pid}/photos/${photoId}/thumb.jpg`,
   logo: (ext: string) => `organization/logo.${ext}`,
+  markup: (pid: string, photoId: string, attachmentId: string, version: number, variant: "web" | "thumb") =>
+    `projects/${pid}/photos/${photoId}/markup/${attachmentId}-${version}-${variant}.jpg`,
 };
