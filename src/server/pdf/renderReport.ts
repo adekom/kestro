@@ -264,8 +264,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       doc.moveDown(0.5);
       ensureSpace(26);
       const y = doc.y;
-      dots.push({ page: currentPage(), y: y + 9 * (0.718 - 0.31), // centred on the 9 pt date line
-      color: statuses.get(statusOn(o.statusEvents, u.date) ?? "")?.color });
+      // Centred on the 9 pt date line (see statusChip).
+      dots.push({ page: currentPage(), y: y + 9 * (0.718 - 0.31), color: statuses.get(statusOn(o.statusEvents, u.date) ?? "")?.color });
       doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED).text(updateDate(u.date), UPDATE_X, y, { width: UPDATE_W });
       doc.font("Helvetica").fontSize(10).fillColor(INK).text(u.text.trim(), UPDATE_X, doc.y, { width: UPDATE_W });
     }
