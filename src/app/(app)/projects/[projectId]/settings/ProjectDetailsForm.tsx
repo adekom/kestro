@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, Lock } from "lucide-react";
+import { BOOL_POLICIES, companyValue, isLocked, POLICY_LABELS, projectChoice } from "@/lib/policies";
 import { setProjectArchivedAction, setProjectOptionsAction, setProjectStatusesAction, updateProjectAction, revertToCompanyStatusesAction } from "@/app/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusesEditor } from "@/app/(app)/settings/StatusesEditor";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
-import type { Project, StatusDef, SummaryOverride } from "@/lib/types";
+import type { OrgSettings, Project, StatusDef } from "@/lib/types";
 
 export function ProjectDetailsForm({ project }: { project: Project }) {
   return (
@@ -54,52 +55,56 @@ function Form({ project }: { project: Project }) {
   );
 }
 
-/** Options that apply to every field report in the project. */
-export function ProjectOptions({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
+/** Shown in place of a choice when the company has locked a setting. */
+function LockedValue({ value }: { value: string }) {
+  return (
+    <p className="field-inset flex min-h-[38px] items-center gap-1.5 text-sm" title="Locked in company settings">
+      {value}
+      <span className="inline-flex items-center gap-1 text-xs text-text-muted">
+        <Lock className="h-3.5 w-3.5" aria-hidden /> Set by company
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Settings that apply to every field report in the project. Each inherits the
+ * company setting unless the project chooses its own; locked ones can't change.
+ */
+export function ProjectOptions({ project, org }: { project: Project; org: OrgSettings }) {
   const router = useRouter();
-  const [summary, setSummary] = useState<SummaryOverride>(project.summaryOverride);
-  const [weather, setWeather] = useState(project.includeWeather);
   const [error, setError] = useState<string | null>(null);
-  const save = async (options: Parameters<typeof setProjectOptionsAction>[1]) => {
-    const res = await setProjectOptionsAction(project.id, options);
-    setError(res.ok ? null : res.error);
-    if (res.ok) router.refresh();
-  };
+  const yesNo = (v: boolean) => (v ? "Yes" : "No");
 
   return (
     <section className="card space-y-3 p-4" aria-labelledby="options-heading">
       <h2 id="options-heading" className="field-inset text-sm font-semibold">Project Settings</h2>
-      <div>
-        <label className="label" htmlFor="p-summary">Include summary of all observations at bottom of PDF Export</label>
-        <InlineSelect
-          id="p-summary"
-          value={summary}
-          onCommit={(v) => {
-            setSummary(v as SummaryOverride);
-            void save({ summaryOverride: v as SummaryOverride });
-          }}
-          options={[
-            { value: "default", label: `Organization default (${orgShowsSummary ? "yes" : "no"})` },
-            { value: "show", label: "Yes" },
-            { value: "hide", label: "No" },
-          ]}
-        />
-      </div>
-      <div>
-        <label className="label" htmlFor="p-weather">Include Weather in Report</label>
-        <InlineSelect
-          id="p-weather"
-          value={weather ? "yes" : "no"}
-          onCommit={(v) => {
-            setWeather(v === "yes");
-            void save({ includeWeather: v === "yes" });
-          }}
-          options={[
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-          ]}
-        />
-      </div>
+      {BOOL_POLICIES.map((k) => {
+        const own = projectChoice(org, project, k);
+        return (
+          <div key={k}>
+            <label className="label" htmlFor={`p-${k}`}>{POLICY_LABELS[k]}</label>
+            {isLocked(org, k) ? (
+              <LockedValue value={yesNo(companyValue(org, k))} />
+            ) : (
+              <InlineSelect
+                id={`p-${k}`}
+                value={own === null ? "inherit" : own ? "yes" : "no"}
+                onCommit={async (v) => {
+                  const res = await setProjectOptionsAction(project.id, { [k]: v === "inherit" ? null : v === "yes" });
+                  setError(res.ok ? null : res.error);
+                  if (res.ok) router.refresh();
+                }}
+                options={[
+                  { value: "inherit", label: `Company setting (${yesNo(companyValue(org, k))})` },
+                  { value: "yes", label: "Yes" },
+                  { value: "no", label: "No" },
+                ]}
+              />
+            )}
+          </div>
+        );
+      })}
       {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
     </section>
   );
@@ -146,15 +151,18 @@ export function ArchiveProject({ project }: { project: Project }) {
  * own list (starting as a copy of the company's, so existing history keeps
  * its meaning).
  */
-export function ProjectStatuses({ project, company }: { project: Project; company: { statuses: StatusDef[]; resolvedStatusId: string } }) {
+export function ProjectStatuses({ project, company, locked }: { project: Project; company: { statuses: StatusDef[]; resolvedStatusId: string }; locked: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const custom = project.statusOverride ?? null;
+  const custom = locked ? null : (project.statusOverride ?? null);
   return (
     <section className="card space-y-3 p-4" aria-labelledby="statuses-heading">
       <h2 id="statuses-heading" className="field-inset text-sm font-semibold">Observation statuses</h2>
       <div>
         <label className="label" htmlFor="p-statuses">Statuses for this project</label>
+        {locked ? (
+          <LockedValue value="Company standard" />
+        ) : (
         <InlineSelect
           id="p-statuses"
           value={custom ? "custom" : "company"}
@@ -171,6 +179,7 @@ export function ProjectStatuses({ project, company }: { project: Project; compan
             { value: "custom", label: "Customize for this project" },
           ]}
         />
+        )}
       </div>
       {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
       {custom ? (

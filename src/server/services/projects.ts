@@ -1,12 +1,14 @@
 import "server-only";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../firebaseAdmin";
-import { projectDoc, projectsCol } from "../paths";
+import { projectDoc, projectsCol, settingsDoc as settingsDocRef } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { groupNameKey } from "@/lib/domain";
 import { getContactsByIds } from "./contacts";
-import { getSettings, normalizeStatuses, type StatusInput } from "./settings";
-import type { Group, Project, ProjectContact, SummaryOverride } from "@/lib/types";
+import { getSettings, normalizeStatuses, projectOverrides, type StatusInput } from "./settings";
+import { BOOL_POLICIES, isLocked, POLICY_LABELS, type BoolPolicy, type PolicyKey } from "@/lib/policies";
+import type { Group, Project, ProjectContact } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
   const snap = await projectsCol().where("archived", "==", opts.archived).get();
@@ -19,8 +21,7 @@ function normalize(p: Project): Project {
     ...p,
     contacts: p.contacts ?? [],
     contactIds: p.contactIds ?? [],
-    summaryOverride: p.summaryOverride ?? "default",
-    includeWeather: p.includeWeather ?? false,
+    overrides: projectOverrides(p),
   };
 }
 
@@ -57,8 +58,7 @@ export async function createProject(input: ProjectInput, contacts: ProjectContac
     groups: [],
     archived: false,
     reportCount: 0,
-    summaryOverride: "default",
-    includeWeather: false,
+    overrides: {},
     contacts: entries,
     contactIds: entries.map((e) => e.contactId),
     createdAt: now(),
@@ -72,20 +72,59 @@ export async function updateProject(pid: string, patch: Partial<ProjectInput>): 
   await projectDoc(pid).update({ ...clean(patch), updatedAt: now() });
 }
 
-export interface ProjectOptions {
-  summaryOverride?: SummaryOverride;
-  includeWeather?: boolean;
+/** The project's choice per setting: a value, or null to inherit the company value. */
+export type ProjectOptions = Partial<Record<BoolPolicy, boolean | null>>;
+
+/** Sets or clears the project's own values. Refused for settings the company has locked. */
+export async function setProjectOptions(pid: string, options: ProjectOptions): Promise<void> {
+  const [project, org] = await Promise.all([getProject(pid), getSettings()]);
+  const next = { ...project.overrides };
+  for (const [key, value] of Object.entries(options) as Array<[string, unknown]>) {
+    if (!(BOOL_POLICIES as readonly string[]).includes(key)) throw new UserError("Invalid project setting.");
+    const k = key as BoolPolicy;
+    if (value === null || value === undefined) delete next[k];
+    else if (typeof value !== "boolean") throw new UserError("Invalid project setting.");
+    else if (isLocked(org, k)) throw new UserError(`"${POLICY_LABELS[k]}" is locked by the company.`);
+    else next[k] = value;
+  }
+  // Old fields are dropped once the project's choices are saved in the new form.
+  await projectDoc(pid).update({ overrides: next, summaryOverride: FieldValue.delete(), includeWeather: FieldValue.delete(), updatedAt: now() });
 }
 
-/** Options that apply to every report in the project. */
-export async function setProjectOptions(pid: string, options: ProjectOptions): Promise<void> {
-  const patch: ProjectOptions = {};
-  if (options.summaryOverride !== undefined) {
-    if (!["default", "show", "hide"].includes(options.summaryOverride)) throw new UserError("Invalid summary option.");
-    patch.summaryOverride = options.summaryOverride;
+/**
+ * Locks or unlocks a company setting. Locking returns every project to the
+ * company value (their own choices are cleared). Statuses can't be locked
+ * while a project uses a status the company list doesn't have.
+ */
+export async function setSettingLock(key: PolicyKey, locked: boolean): Promise<void> {
+  if (key !== "statuses" && !(BOOL_POLICIES as readonly string[]).includes(key)) throw new UserError("Invalid setting.");
+  const org = await getSettings();
+  const snap = await projectsCol().get();
+  const projects = snap.docs.map((d) => normalize(d.data() as Project));
+  if (locked && key === "statuses") {
+    const company = new Set(org.statuses.map((s) => s.id));
+    const blocked: string[] = [];
+    for (const p of projects.filter((p) => p.statusOverride)) {
+      const used = await statusesUsedInProject(p.id);
+      if (p.statusOverride!.statuses.some((s) => used.has(s.id) && !company.has(s.id))) blocked.push(p.name);
+    }
+    if (blocked.length) {
+      throw new UserError(`These projects use statuses the company list doesn't have: ${blocked.join(", ")}. Change those observations' status, or add the statuses to the company list, first.`);
+    }
   }
-  if (options.includeWeather !== undefined) patch.includeWeather = Boolean(options.includeWeather);
-  await projectDoc(pid).update({ ...patch, updatedAt: now() });
+  const batch = db().batch();
+  batch.set(settingsDocRef(), { locks: { ...org.locks, [key]: locked }, updatedAt: now() }, { merge: true });
+  if (locked) {
+    for (const p of projects) {
+      if (key === "statuses" && p.statusOverride) batch.update(projectDoc(p.id), { statusOverride: null, updatedAt: now() });
+      if (key !== "statuses" && p.overrides[key] !== undefined) {
+        const rest = { ...p.overrides };
+        delete rest[key];
+        batch.update(projectDoc(p.id), { overrides: rest, summaryOverride: FieldValue.delete(), includeWeather: FieldValue.delete(), updatedAt: now() });
+      }
+    }
+  }
+  await batch.commit();
 }
 
 /** Status IDs used by this project's observations (current and historical). */
@@ -98,6 +137,7 @@ async function statusesUsedInProject(pid: string): Promise<Set<string>> {
 /** Gives the project its own status list (start from the company's to keep history meaningful). */
 export async function setProjectStatuses(pid: string, input: StatusInput, resolvedIndex: number): Promise<void> {
   const project = await getProject(pid);
+  if (isLocked(await getSettings(), "statuses")) throw new UserError("Observation statuses are locked by the company.");
   const current = project.statusOverride?.statuses ?? (await getSettings()).statuses;
   const used = await statusesUsedInProject(pid);
   const next = await normalizeStatuses(input, resolvedIndex, current, async (id) => used.has(id));

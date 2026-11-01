@@ -441,7 +441,7 @@ export function MarkupEditor({
 
       {/* Styles: a dashed outline shows they apply to the selected markup. */}
       <div
-        className={`flex flex-wrap items-start gap-3 self-start rounded-md p-1.5 text-xs outline-2 outline-dashed ${selectedShape ? "outline-primary" : "outline-transparent"}`}
+        className={`flex flex-wrap items-start gap-3 self-start rounded-md border border-dashed p-1.5 text-xs ${selectedShape ? "border-text-muted/60" : "border-transparent"}`}
         title={selectedShape ? "Changes apply to the selected markup" : "Style for new markups"}
       >
         <StyleGroup label="Stroke">
@@ -463,6 +463,13 @@ export function MarkupEditor({
       {/* Canvas */}
       <div ref={viewRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
         <div className="relative overflow-hidden" style={{ width: side, height: side }}>
+        {tool === "crop" && size && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-10 border-2 border-dashed border-primary">
+            {["top-0 left-0", "top-0 right-0", "bottom-0 right-0", "bottom-0 left-0"].map((pos) => (
+              <span key={pos} className={`absolute h-3 w-3 border-2 border-primary bg-white ${pos}`} />
+            ))}
+          </div>
+        )}
         <div className="absolute" style={layer}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -691,44 +698,56 @@ function IconButton({ label, Icon, disabled, onClick }: { label: string; Icon: L
 }
 
 function ColorChoice({ label, value, allowNone, onChange }: { label: string; value: string | null; allowNone?: boolean; onChange: (c: string | null) => void }) {
+  const [open, setOpen] = useState(false);
   const [hex, setHex] = useState(value ?? "");
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => setHex(value ?? ""), [value]);
+  // Clicking elsewhere closes the choices.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const choose = (c: string | null) => {
+    onChange(c);
+    setOpen(false);
+  };
+  const isCurrent = (c: string | null) => (c === null ? value === null : value?.toUpperCase() === c);
+  const swatch = (c: string | null, current: boolean) => (
+    <button
+      key={c ?? "none"}
+      type="button"
+      title={c ?? "None"}
+      aria-label={current ? `${label} colour: ${c ?? "none"}. Change` : c ?? `No ${label.toLowerCase()}`}
+      aria-expanded={current ? open : undefined}
+      onClick={() => (current ? setOpen(!open) : choose(c))}
+      className={`h-6 w-6 rounded border ${c === null ? "border-border bg-[linear-gradient(135deg,transparent_45%,#E5352B_45%,#E5352B_55%,transparent_55%)]" : "border-black/15"} ${current && open ? "ring-2 ring-primary ring-offset-1" : ""}`}
+      style={c ? { backgroundColor: c } : undefined}
+    />
+  );
+  const current = value === null ? null : (PALETTE.find((c) => c === value.toUpperCase()) ?? value);
   return (
-    <div className="flex items-center gap-1.5" role="group" aria-label={`${label} colour`}>
-      {allowNone && (
-        <button
-          type="button"
-          title="None"
-          aria-label="No fill"
-          aria-pressed={value === null}
-          onClick={() => onChange(null)}
-          className={`h-6 w-6 rounded border bg-[linear-gradient(135deg,transparent_45%,#E5352B_45%,#E5352B_55%,transparent_55%)] ${value === null ? "ring-2 ring-primary ring-offset-1" : "border-border"}`}
-        />
+    <div ref={box} className="flex items-center gap-1.5" role="group" aria-label={`${label} colour`}>
+      {swatch(current, true)}
+      {open && (
+        <>
+          {allowNone && !isCurrent(null) && swatch(null, false)}
+          {PALETTE.filter((c) => !isCurrent(c)).map((c) => swatch(c, false))}
+          <input
+            aria-label={`${label} hex colour`}
+            className="input w-24 py-1 font-mono text-xs"
+            value={hex}
+            placeholder={allowNone ? "none" : "#RRGGBB"}
+            onChange={(e) => setHex(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              if (/^#[0-9a-fA-F]{6}$/.test(hex)) choose(hex.toUpperCase());
+              else setHex(value ?? "");
+            }}
+          />
+        </>
       )}
-      {PALETTE.map((c) => (
-        <button
-          key={c}
-          type="button"
-          title={c}
-          aria-label={c}
-          aria-pressed={value?.toUpperCase() === c}
-          onClick={() => onChange(c)}
-          className={`h-6 w-6 rounded border border-black/15 ${value?.toUpperCase() === c ? "ring-2 ring-primary ring-offset-1" : ""}`}
-          style={{ backgroundColor: c }}
-        />
-      ))}
-      <input
-        aria-label={`${label} hex colour`}
-        className="input w-24 py-1 font-mono text-xs"
-        value={hex}
-        placeholder={allowNone ? "none" : "#RRGGBB"}
-        onChange={(e) => setHex(e.target.value)}
-        onBlur={() => {
-          if (/^#[0-9a-fA-F]{6}$/.test(hex)) onChange(hex.toUpperCase());
-          else setHex(value ?? "");
-        }}
-        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      />
     </div>
   );
 }

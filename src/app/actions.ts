@@ -5,6 +5,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth";
+import type { PolicyKey } from "@/lib/policies";
 import { db } from "@/server/firebaseAdmin";
 import { toResult } from "@/server/errors";
 import * as projects from "@/server/services/projects";
@@ -350,6 +351,14 @@ export async function updateSettingsAction(patch: settings.SettingsPatch) {
   return toResult(async () => {
     await requireUser("admin");
     await settings.updateSettings(patch);
+    revalidatePath("/", "layout");
+  });
+}
+
+export async function setSettingLockAction(key: PolicyKey, locked: boolean) {
+  return toResult(async () => {
+    await requireUser("admin");
+    await projects.setSettingLock(key, locked);
     revalidatePath("/", "layout");
   });
 }

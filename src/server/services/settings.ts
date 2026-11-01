@@ -2,6 +2,7 @@ import "server-only";
 import { projectDoc, settingsDoc } from "../paths";
 import { now, newId } from "../time";
 import { UserError } from "../errors";
+import { BOOL_POLICIES, effectiveValue, isLocked, NO_LOCKS } from "@/lib/policies";
 import type { OrgSettings, Project, StatusDef } from "@/lib/types";
 
 // Generic defaults only — every firm configures its own identity after setup.
@@ -13,6 +14,9 @@ export const DEFAULT_SETTINGS: OrgSettings = {
   disclaimer: "",
   footerText: "",
   showSummaryDefault: true,
+  includeWeather: false,
+  autoPhotoUpdate: true,
+  locks: NO_LOCKS,
   fieldVisibility: { address: true, contact: true, attendance: true, ongoingWork: true, author: true },
   statuses: [
     // Pastel tones: soft enough for report pages, distinct as small dots.
@@ -26,12 +30,14 @@ export const DEFAULT_SETTINGS: OrgSettings = {
 
 export async function getSettings(): Promise<OrgSettings> {
   const snap = await settingsDoc().get();
-  return snap.exists ? { ...DEFAULT_SETTINGS, ...(snap.data() as Partial<OrgSettings>) } : DEFAULT_SETTINGS;
+  if (!snap.exists) return DEFAULT_SETTINGS;
+  const stored = snap.data() as Partial<OrgSettings>;
+  return { ...DEFAULT_SETTINGS, ...stored, locks: { ...NO_LOCKS, ...stored.locks } };
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-export type SettingsPatch = Partial<Omit<OrgSettings, "statuses" | "resolvedStatusId" | "updatedAt" | "logoPath">>;
+export type SettingsPatch = Partial<Omit<OrgSettings, "statuses" | "resolvedStatusId" | "updatedAt" | "logoPath" | "locks">>;
 
 export async function updateSettings(patch: SettingsPatch): Promise<void> {
   await settingsDoc().set({ ...(await getSettings()), ...patch, updatedAt: now() });
@@ -75,10 +81,35 @@ export async function saveStatuses(input: StatusInput, resolvedIndex: number, is
 }
 
 /** Organization settings with the project's own statuses when it has them. */
+/**
+ * Settings in effect for a project: company settings with the project's own
+ * choices applied where the company hasn't locked them. The yes/no settings
+ * appear under their company field names (showSummaryDefault, includeWeather,
+ * autoPhotoUpdate).
+ */
 export async function getProjectSettings(pid: string): Promise<OrgSettings> {
   const [settings, snap] = await Promise.all([getSettings(), projectDoc(pid).get()]);
-  const override = (snap.data() as Project | undefined)?.statusOverride;
-  return override ? { ...settings, statuses: override.statuses, resolvedStatusId: override.resolvedStatusId } : settings;
+  const project = snap.data() as Project | undefined;
+  if (!project) return settings;
+  const overrides = projectOverrides(project);
+  const [summary, weather, autoPhotoUpdate] = BOOL_POLICIES.map((k) => effectiveValue(settings, { overrides }, k));
+  const custom = !isLocked(settings, "statuses") ? project.statusOverride : null;
+  return {
+    ...settings,
+    showSummaryDefault: summary,
+    includeWeather: weather,
+    autoPhotoUpdate,
+    ...(custom ? { statuses: custom.statuses, resolvedStatusId: custom.resolvedStatusId } : {}),
+  };
+}
+
+/** A project's own choices, including ones saved before overrides existed. */
+export function projectOverrides(p: Project): Project["overrides"] {
+  if (p.overrides) return p.overrides;
+  const legacy: Project["overrides"] = {};
+  if (p.summaryOverride === "show" || p.summaryOverride === "hide") legacy.summary = p.summaryOverride === "show";
+  if (p.includeWeather) legacy.weather = true;
+  return legacy;
 }
 
 export async function setLogoPath(logoPath: string | null): Promise<void> {

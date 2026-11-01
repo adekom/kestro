@@ -20,12 +20,15 @@ export function StatusesEditor({
   resolvedStatusId,
   onSave = (list, resolvedIndex) => saveStatusesAction(list, resolvedIndex),
   embedded = false,
+  lock,
 }: {
   statuses: StatusDef[];
   resolvedStatusId: string;
   onSave?: SaveStatuses;
   /** Inside another section: no card, heading or intro. */
   embedded?: boolean;
+  /** Lock control shown beside the heading (company settings). */
+  lock?: React.ReactNode;
 }) {
   const sorted = [...statuses].sort((a, b) => a.order - b.order);
   // `key` identifies a row on screen; `id` is empty until the status is saved.
@@ -46,7 +49,10 @@ export function StatusesEditor({
     <section className={embedded ? "" : "card p-4"}>
       {!embedded && (
         <>
-          <h2 className="field-inset mb-1 text-sm font-semibold">Observation statuses</h2>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <h2 className="field-inset text-sm font-semibold">Observation statuses</h2>
+            {lock}
+          </div>
           <p className="field-inset mb-3 text-xs text-text-muted">
             Renaming or recoloring keeps all history. The resolved status is excluded by default when carrying observations into
             the next report. A status in use cannot be removed.

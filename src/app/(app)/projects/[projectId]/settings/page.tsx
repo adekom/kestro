@@ -11,8 +11,8 @@ export default async function ProjectSettingsPage({ params }: { params: Promise<
       <h1 className="page-title">Project settings</h1>
       <div className="form-width space-y-6">
         <ProjectDetailsForm project={project} />
-        <ProjectOptions project={project} orgShowsSummary={settings.showSummaryDefault} />
-        <ProjectStatuses project={project} company={{ statuses: settings.statuses, resolvedStatusId: settings.resolvedStatusId }} />
+        <ProjectOptions project={project} org={settings} />
+        <ProjectStatuses project={project} company={{ statuses: settings.statuses, resolvedStatusId: settings.resolvedStatusId }} locked={settings.locks.statuses} />
         <GroupsEditor key={project.groups.map((g) => g.id).join()} projectId={project.id} groups={project.groups} />
         <ArchiveProject project={project} />
       </div>

@@ -214,11 +214,11 @@ function ObservationCard({
               const color = statusById.get(statusOn(item.statusEvents, u.date) ?? "")?.color;
               const last = i === item.updates.length - 1;
               return (
-                <li key={u.id} className="relative pb-3 text-sm last:pb-0">
-                  {!last && <span aria-hidden className="absolute top-3.5 bottom-0 -left-[7px] w-px bg-border" />}
+                <li key={u.id} className="relative pb-3 pl-6 text-sm last:pb-0">
+                  {!last && <span aria-hidden className="absolute top-3.5 bottom-0 left-[5px] w-0.5 bg-border" />}
                   <span
                     aria-hidden
-                    className="absolute top-1 -left-[11px] h-2.5 w-2.5 rounded-full ring-1 ring-border"
+                    className="absolute top-1 left-0 h-3 w-3 rounded-full border-2 border-surface ring-1 ring-border"
                     style={{ backgroundColor: color ?? "var(--color-surface)" }}
                   />
                   <div className={`text-xs font-semibold ${u.reportId === reportId ? "text-primary-hover" : "text-text-muted"}`}>{updateLabel(u)}</div>

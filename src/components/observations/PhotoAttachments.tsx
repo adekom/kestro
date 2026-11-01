@@ -82,7 +82,19 @@ function PhotoRow({
   const icon = "rounded p-1.5 text-text-muted hover:bg-surface-muted hover:text-text disabled:invisible";
   return (
     <li className="flex items-center gap-2 py-1.5">
-      <a href={attachmentUrl(pid, a, "web")} target="_blank" rel="noopener" title="Open full image" className="shrink-0">
+      <a
+        href={attachmentUrl(pid, a, "web")}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open full image in a new tab"
+        className="shrink-0 cursor-zoom-in rounded hover:ring-2 hover:ring-primary"
+        onClick={(e) => {
+          // Open explicitly so nothing in the panel can swallow the click.
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(attachmentUrl(pid, a, "web"), "_blank", "noopener");
+        }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
       </a>

@@ -90,7 +90,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     project.code && `Project no. ${project.code}`,
     project.address,
     settings.fieldVisibility.author && report.authorName && `Prepared by ${report.authorName}`,
-    project.includeWeather && report.weather?.trim() && `Weather: ${report.weather.trim()}`,
+    settings.includeWeather && report.weather?.trim() && `Weather: ${report.weather.trim()}`,
   ].filter(Boolean);
   if (facts.length) doc.text(facts.join("  ·  "));
   doc.moveDown(0.8);
@@ -115,7 +115,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   }
 
   // ---- Optional summary ----
-  const showSummary = project.summaryOverride === "default" ? settings.showSummaryDefault : project.summaryOverride === "show";
+  const showSummary = settings.showSummaryDefault; // the project's effective setting
   if (showSummary && view.observations.length) {
     heading("Summary of observations", 30);
     for (const o of view.observations) {

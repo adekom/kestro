@@ -101,10 +101,10 @@ describe("observation numbering and carry-forward", () => {
 describe("project report options", () => {
   it("stores the PDF summary choice and weather recording on the project; reports keep their weather", async () => {
     const pid = await newProject();
-    expect(await getProject(pid)).toMatchObject({ summaryOverride: "default", includeWeather: false });
-    await setProjectOptions(pid, { summaryOverride: "hide", includeWeather: true });
-    expect(await getProject(pid)).toMatchObject({ summaryOverride: "hide", includeWeather: true });
-    await expect(setProjectOptions(pid, { summaryOverride: "sometimes" as never })).rejects.toThrow(/Invalid/);
+    expect((await getProject(pid)).overrides).toEqual({});
+    await setProjectOptions(pid, { summary: false, weather: true });
+    expect((await getProject(pid)).overrides).toEqual({ summary: false, weather: true });
+    await expect(setProjectOptions(pid, { summary: "sometimes" as never })).rejects.toThrow(/Invalid/);
 
     const rid = await report(pid, "2026-07-14");
     await updateReportInfo(pid, rid, { weather: "Overcast, 58°F" }, 1);

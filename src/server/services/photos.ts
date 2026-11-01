@@ -5,6 +5,7 @@ import { bucket, db } from "../firebaseAdmin";
 import { attachmentsCol, observationDoc, photoSharesCol, photosCol, reportDoc, storagePaths } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
+import { notePhotoAdded } from "./observations";
 import type { Observation, Photo, PhotoAttachment, PhotoShare, Report } from "@/lib/types";
 
 export const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
@@ -110,6 +111,7 @@ export async function attachPhoto(pid: string, photoId: string, oid: string, rid
     };
     tx.create(attachmentsCol(pid).doc(id), attachment);
   });
+  await notePhotoAdded(pid, oid, rid);
   return id;
 }
 

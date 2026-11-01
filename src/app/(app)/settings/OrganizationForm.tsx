@@ -29,7 +29,6 @@ function Form({ settings }: { settings: OrgSettings }) {
     contactLine: settings.contactLine,
     disclaimer: settings.disclaimer,
     footerText: settings.footerText,
-    showSummaryDefault: settings.showSummaryDefault,
     fieldVisibility: settings.fieldVisibility,
   });
   useAutosave("org", form, (v) => updateSettingsAction(v));
@@ -70,15 +69,6 @@ function Form({ settings }: { settings: OrgSettings }) {
               {VISIBILITY_LABELS[k]}
             </label>
           ))}
-          <label className="flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              className="accent-primary"
-              checked={form.showSummaryDefault}
-              onChange={(e) => setForm({ ...form, showSummaryDefault: e.target.checked })}
-            />
-            Observation summary (default)
-          </label>
         </div>
       </fieldset>
     </section>

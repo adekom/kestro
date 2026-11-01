@@ -1,3 +1,4 @@
+import type { BoolPolicy, PolicyLocks } from "./policies";
 import type { Markup } from "./markup";
 
 // Shared domain types. Internal identity is always a UUID; human-facing
@@ -47,7 +48,14 @@ export interface OrgSettings {
   logoPath: string | null;
   disclaimer: string;
   footerText: string;
+  /** Company value of the "summary" setting. */
   showSummaryDefault: boolean;
+  /** Company value of the "weather" setting. */
+  includeWeather: boolean;
+  /** Company value of the "autoPhotoUpdate" setting. */
+  autoPhotoUpdate: boolean;
+  /** Settings projects can't change (see lib/policies). */
+  locks: PolicyLocks;
   fieldVisibility: FieldVisibility;
   statuses: StatusDef[];
   /** Exactly one status is "resolved", identified by ID, never by label. */
@@ -69,11 +77,13 @@ export interface Project {
   description: string;
   /** Prefix shown before the report number, e.g. "Field Report ". */
   reportPrefix: string;
-  /** Whether PDFs include the observation summary ("default" follows the organization). */
-  summaryOverride: SummaryOverride;
-  /** Reports record the weather during the visit. */
-  includeWeather: boolean;
-  /** Project-specific statuses; null uses the company standard. IDs match the company's where copied. */
+  /** The project's own values for company settings; a missing key inherits the company value (see lib/policies). */
+  overrides: Partial<Record<BoolPolicy, boolean>>;
+  /** @deprecated Replaced by overrides.summary; read only to carry old choices over. */
+  summaryOverride?: SummaryOverride;
+  /** @deprecated Replaced by overrides.weather; read only to carry old choices over. */
+  includeWeather?: boolean;
+  /** Project-specific statuses; null uses the company standard. IDs match the company's where copied. Ignored while the company locks statuses. */
   statusOverride?: { statuses: StatusDef[]; resolvedStatusId: string } | null;
   groups: Group[];
   archived: boolean;

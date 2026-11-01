@@ -183,6 +183,29 @@ export async function addUpdate(pid: string, oid: string, rid: string, text: str
   return id;
 }
 
+export const PHOTO_ADDED = "Photo added.";
+export const PHOTOS_ADDED = "Photos added.";
+
+/**
+ * When the project's "automatically add update" setting is on: adding a photo
+ * to an observation carried into report `rid` gives it an update saying so,
+ * unless it already has one for this visit. An untouched "Photo added." becomes
+ * "Photos added." with the next photo. Not in the report where the observation
+ * was created, whose photos belong to the original record.
+ */
+export async function notePhotoAdded(pid: string, oid: string, rid: string): Promise<void> {
+  if (!(await getProjectSettings(pid)).autoPhotoUpdate) return;
+  const obs = (await observationDoc(pid, oid).get()).data() as Observation | undefined;
+  if (!obs || obs.deletedAt || obs.originReportId === rid) return;
+  const existing = await updatesCol(pid, oid).where("reportId", "==", rid).limit(1).get();
+  if (existing.empty) {
+    await addUpdate(pid, oid, rid, PHOTO_ADDED).catch(() => undefined); // someone else just added one
+    return;
+  }
+  const update = existing.docs[0];
+  if ((update.data() as ObservationUpdate).text === PHOTO_ADDED) await update.ref.update({ text: PHOTOS_ADDED, updatedAt: now() });
+}
+
 export async function editUpdate(pid: string, oid: string, updateId: string, text: string): Promise<void> {
   if (!text.trim()) throw new UserError("Update text is required.");
   await updatesCol(pid, oid).doc(updateId).update({ text: text.slice(0, 20000), updatedAt: now() });
