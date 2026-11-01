@@ -89,6 +89,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     project.code && `Project no. ${project.code}`,
     project.address,
     settings.fieldVisibility.author && report.authorName && `Prepared by ${report.authorName}`,
+    project.includeWeather && report.weather?.trim() && `Weather: ${report.weather.trim()}`,
   ].filter(Boolean);
   if (facts.length) doc.text(facts.join("  ·  "));
   doc.moveDown(0.8);

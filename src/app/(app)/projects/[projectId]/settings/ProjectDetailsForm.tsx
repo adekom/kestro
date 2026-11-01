@@ -1,23 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { setProjectArchivedAction, setProjectSummaryAction, updateProjectAction } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { Archive, ArchiveRestore } from "lucide-react";
+import { setProjectArchivedAction, setProjectOptionsAction, updateProjectAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
-import type { Project, SummaryOverride } from "@/lib/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
+import type { Project, SummaryOverride } from "@/lib/types";
 
-/** `orgShowsSummary`: the organization's default for the PDF observation summary. */
-export function ProjectDetailsForm({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
+export function ProjectDetailsForm({ project }: { project: Project }) {
   return (
     <SaveStatusProvider>
-      <Form project={project} orgShowsSummary={orgShowsSummary} />
+      <Form project={project} />
     </SaveStatusProvider>
   );
 }
 
-function Form({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
-  const [summary, setSummary] = useState<SummaryOverride>(project.summaryOverride);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
+function Form({ project }: { project: Project }) {
   const [form, setForm] = useState({
     name: project.name,
     code: project.code,
@@ -48,31 +48,93 @@ function Form({ project, orgShowsSummary }: { project: Project; orgShowsSummary:
       {field("address", "Address")}
       {field("reportPrefix", "Report label prefix (e.g. “Field Report ”)")}
       {field("description", "Description", true)}
+    </section>
+  );
+}
+
+/** Options that apply to every field report in the project. */
+export function ProjectOptions({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
+  const router = useRouter();
+  const [summary, setSummary] = useState<SummaryOverride>(project.summaryOverride);
+  const [weather, setWeather] = useState(project.includeWeather);
+  const [error, setError] = useState<string | null>(null);
+  const save = async (options: Parameters<typeof setProjectOptionsAction>[1]) => {
+    const res = await setProjectOptionsAction(project.id, options);
+    setError(res.ok ? null : res.error);
+    if (res.ok) router.refresh();
+  };
+
+  return (
+    <section className="card space-y-3 p-4" aria-labelledby="options-heading">
+      <h2 id="options-heading" className="field-inset text-sm font-semibold">Project Settings</h2>
       <div>
-        <label className="label" htmlFor="p-summary">Observation summary in PDF</label>
+        <label className="label" htmlFor="p-summary">Include summary of all observations at bottom of PDF Export</label>
         <InlineSelect
           id="p-summary"
           value={summary}
-          onCommit={async (v) => {
+          onCommit={(v) => {
             setSummary(v as SummaryOverride);
-            const res = await setProjectSummaryAction(project.id, v as SummaryOverride);
-            setSummaryError(res.ok ? null : res.error);
+            void save({ summaryOverride: v as SummaryOverride });
           }}
           options={[
-            { value: "default", label: `Organization default (${orgShowsSummary ? "show" : "hide"})` },
-            { value: "show", label: "Show" },
-            { value: "hide", label: "Hide" },
+            { value: "default", label: `Organization default (${orgShowsSummary ? "yes" : "no"})` },
+            { value: "show", label: "Yes" },
+            { value: "hide", label: "No" },
           ]}
         />
-        {summaryError && <p className="field-inset mt-1 text-xs text-danger" role="alert">{summaryError}</p>}
       </div>
-      <button
-        type="button"
-        className="btn"
-        onClick={() => setProjectArchivedAction(project.id, !project.archived)}
-      >
-        {project.archived ? "Restore project" : "Archive project"}
+      <div>
+        <label className="label" htmlFor="p-weather">Include Weather in Report</label>
+        <InlineSelect
+          id="p-weather"
+          value={weather ? "yes" : "no"}
+          onCommit={(v) => {
+            setWeather(v === "yes");
+            void save({ includeWeather: v === "yes" });
+          }}
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+        />
+      </div>
+      {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+/** Archiving hides the project from the active list; it can be restored at any time. */
+export function ArchiveProject({ project }: { project: Project }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const Icon = project.archived ? ArchiveRestore : Archive;
+  return (
+    <section className="space-y-2 border-t border-border pt-6">
+      <p className="field-inset text-sm text-text-muted">
+        {project.archived
+          ? "This project is archived. Restore it to return it to the active project list."
+          : "Archived projects move to the Archived tab. Nothing is deleted, and they can be restored at any time."}
+      </p>
+      <button type="button" className="btn" onClick={() => setConfirming(true)}>
+        <Icon className="h-4 w-4" aria-hidden /> {project.archived ? "Restore project" : "Archive project"}
       </button>
+      <ConfirmDialog
+        open={confirming}
+        title={project.archived ? "Restore project?" : "Archive project?"}
+        confirmLabel={project.archived ? "Restore" : "Archive"}
+        onClose={() => setConfirming(false)}
+        onConfirm={async () => {
+          const res = await setProjectArchivedAction(project.id, !project.archived);
+          if (!res.ok) return res.error;
+          router.refresh();
+          return null;
+        }}
+      >
+        <p>
+          <span className="font-medium">{project.name}</span>{" "}
+          {project.archived ? "will return to the active project list." : "will move to the Archived tab."}
+        </p>
+      </ConfirmDialog>
     </section>
   );
 }

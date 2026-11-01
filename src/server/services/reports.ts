@@ -220,6 +220,7 @@ export interface ReportInfoPatch {
   visitTime?: string;
   authorName?: string;
   ongoingWork?: string;
+  weather?: string;
   attendees?: Attendee[];
 }
 
@@ -235,6 +236,7 @@ export async function updateReportInfo(
     ...patch,
     visitTime: patch.visitTime?.slice(0, 20),
     ongoingWork: patch.ongoingWork?.slice(0, 20000),
+    weather: patch.weather?.slice(0, 300),
     authorName: patch.authorName?.slice(0, 200),
     attendees: patch.attendees?.slice(0, 200).map((a) => ({
       id: a.id || newId(),

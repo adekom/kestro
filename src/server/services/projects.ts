@@ -14,7 +14,13 @@ export async function listProjects(opts: { archived: boolean }): Promise<Project
 
 /** Fills fields added after a project was created. */
 function normalize(p: Project): Project {
-  return { ...p, contacts: p.contacts ?? [], contactIds: p.contactIds ?? [], summaryOverride: p.summaryOverride ?? "default" };
+  return {
+    ...p,
+    contacts: p.contacts ?? [],
+    contactIds: p.contactIds ?? [],
+    summaryOverride: p.summaryOverride ?? "default",
+    includeWeather: p.includeWeather ?? false,
+  };
 }
 
 export async function getProject(pid: string): Promise<Project> {
@@ -51,6 +57,7 @@ export async function createProject(input: ProjectInput, contacts: ProjectContac
     archived: false,
     reportCount: 0,
     summaryOverride: "default",
+    includeWeather: false,
     contacts: entries,
     contactIds: entries.map((e) => e.contactId),
     createdAt: now(),
@@ -64,10 +71,20 @@ export async function updateProject(pid: string, patch: Partial<ProjectInput>): 
   await projectDoc(pid).update({ ...clean(patch), updatedAt: now() });
 }
 
-/** PDF observation summary for every report in the project. */
-export async function setProjectSummary(pid: string, summaryOverride: SummaryOverride): Promise<void> {
-  if (!["default", "show", "hide"].includes(summaryOverride)) throw new UserError("Invalid summary option.");
-  await projectDoc(pid).update({ summaryOverride, updatedAt: now() });
+export interface ProjectOptions {
+  summaryOverride?: SummaryOverride;
+  includeWeather?: boolean;
+}
+
+/** Options that apply to every report in the project. */
+export async function setProjectOptions(pid: string, options: ProjectOptions): Promise<void> {
+  const patch: ProjectOptions = {};
+  if (options.summaryOverride !== undefined) {
+    if (!["default", "show", "hide"].includes(options.summaryOverride)) throw new UserError("Invalid summary option.");
+    patch.summaryOverride = options.summaryOverride;
+  }
+  if (options.includeWeather !== undefined) patch.includeWeather = Boolean(options.includeWeather);
+  await projectDoc(pid).update({ ...patch, updatedAt: now() });
 }
 
 export async function setProjectArchived(pid: string, archived: boolean): Promise<void> {

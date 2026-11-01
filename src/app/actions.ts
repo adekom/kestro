@@ -17,7 +17,7 @@ import * as settings from "@/server/services/settings";
 import * as users from "@/server/services/users";
 import * as contacts from "@/server/services/contacts";
 import { getObservationDetail } from "@/server/services/reportView";
-import type { ProjectContact, Role, StatusDef, SummaryOverride } from "@/lib/types";
+import type { ProjectContact, Role, StatusDef } from "@/lib/types";
 
 const reportPath = (pid: string, rid: string) => `/projects/${pid}/reports/${rid}`;
 
@@ -52,10 +52,10 @@ export async function setProjectsArchivedAction(pids: string[], archived: boolea
   });
 }
 
-export async function setProjectSummaryAction(pid: string, summaryOverride: SummaryOverride) {
+export async function setProjectOptionsAction(pid: string, options: projects.ProjectOptions) {
   return toResult(async () => {
     await requireUser();
-    await projects.setProjectSummary(pid, summaryOverride);
+    await projects.setProjectOptions(pid, options);
     revalidatePath(`/projects/${pid}`, "layout");
   });
 }

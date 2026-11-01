@@ -1,6 +1,6 @@
 import { getProject } from "@/server/services/projects";
 import { getSettings } from "@/server/services/settings";
-import { ProjectDetailsForm } from "./ProjectDetailsForm";
+import { ArchiveProject, ProjectDetailsForm, ProjectOptions } from "./ProjectDetailsForm";
 import { GroupsEditor } from "./GroupsEditor";
 
 export default async function ProjectSettingsPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -10,8 +10,10 @@ export default async function ProjectSettingsPage({ params }: { params: Promise<
     <main className="page">
       <h1 className="page-title">Project settings</h1>
       <div className="form-width space-y-6">
-        <ProjectDetailsForm project={project} orgShowsSummary={settings.showSummaryDefault} />
+        <ProjectDetailsForm project={project} />
+        <ProjectOptions project={project} orgShowsSummary={settings.showSummaryDefault} />
         <GroupsEditor key={project.groups.map((g) => g.id).join()} projectId={project.id} groups={project.groups} />
+        <ArchiveProject project={project} />
       </div>
     </main>
   );

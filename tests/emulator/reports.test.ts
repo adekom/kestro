@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { resetEmulators } from "../support/fixtures";
-import { createProject, getProject, saveGroups } from "@/server/services/projects";
-import { carryForwardCandidates, createReport, getMemberships, listReports } from "@/server/services/reports";
+import { createProject, getProject, saveGroups, setProjectOptions } from "@/server/services/projects";
+import { carryForwardCandidates, createReport, getMemberships, getReport, listReports, updateReportInfo } from "@/server/services/reports";
 import { addUpdate, createObservation, deleteUpdate, setStatusInReport, updateObservation } from "@/server/services/observations";
 import { buildReportView, getObservationDetail } from "@/server/services/reportView";
 import { ensureShareToken, listAttachments, readPhotoFile, resolveShare, revokeShare, uploadPhoto, getPhoto } from "@/server/services/photos";
@@ -94,6 +94,22 @@ describe("observation numbering and carry-forward", () => {
     await report(pid, "2026-07-28", r1, [oid]);
     const all = await db().collection(`projects/${pid}/observations`).get();
     expect(all.size).toBe(1);
+  });
+});
+
+describe("project report options", () => {
+  it("stores the PDF summary choice and weather recording on the project; reports keep their weather", async () => {
+    const pid = await newProject();
+    expect(await getProject(pid)).toMatchObject({ summaryOverride: "default", includeWeather: false });
+    await setProjectOptions(pid, { summaryOverride: "hide", includeWeather: true });
+    expect(await getProject(pid)).toMatchObject({ summaryOverride: "hide", includeWeather: true });
+    await expect(setProjectOptions(pid, { summaryOverride: "sometimes" as never })).rejects.toThrow(/Invalid/);
+
+    const rid = await report(pid, "2026-07-14");
+    await updateReportInfo(pid, rid, { weather: "Overcast, 58°F" }, 1);
+    expect((await getReport(pid, rid)).weather).toBe("Overcast, 58°F");
+    const pdf = await renderReportPdf(await buildReportView(pid, rid), "https://reports.example.org");
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
   });
 });
 

@@ -39,6 +39,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
     visitTime: report.visitTime,
     authorName: report.authorName,
     ongoingWork: report.ongoingWork,
+    weather: report.weather ?? "",
     attendees: report.attendees,
   });
   const version = useRef(report.version);
@@ -83,6 +84,17 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
             <label className="label" htmlFor="ri-author">Author</label>
             <InlineText id="ri-author" value={info.authorName} onChange={(v) => set("authorName", v)} />
           </div>
+          {project.includeWeather && (
+            <div className="col-span-3">
+              <label className="label" htmlFor="ri-weather">Weather</label>
+              <InlineText
+                id="ri-weather"
+                placeholder="e.g. Overcast, 58°F, light rain in the morning"
+                value={info.weather}
+                onChange={(v) => set("weather", v)}
+              />
+            </div>
+          )}
         </div>
       </Card>
 

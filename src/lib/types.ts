@@ -69,6 +69,8 @@ export interface Project {
   reportPrefix: string;
   /** Whether PDFs include the observation summary ("default" follows the organization). */
   summaryOverride: SummaryOverride;
+  /** Reports record the weather during the visit. */
+  includeWeather: boolean;
   groups: Group[];
   archived: boolean;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */
@@ -124,6 +126,8 @@ export interface Report {
   visitTime: string;
   authorName: string;
   ongoingWork: string;
+  /** Weather during the visit (when the project records weather). */
+  weather?: string;
   attendees: Attendee[];
   /** @deprecated The summary option is a project setting (Project.summaryOverride). */
   summaryOverride?: SummaryOverride;
