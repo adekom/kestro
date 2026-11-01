@@ -4,6 +4,7 @@ import { db } from "../firebaseAdmin";
 import { contactsCol, projectsCol } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
+import { getSettings } from "./settings";
 import { contactName, EMAIL_PATTERN, emailKey } from "@/lib/domain";
 import type { Contact, Project } from "@/lib/types";
 
@@ -33,27 +34,35 @@ function clean(input: ContactInput): Required<ContactInput> {
   return out;
 }
 
-/** Fills fields added after a contact was created. */
-const normalize = (c: Contact): Contact => ({ ...c, defaultRole: c.defaultRole ?? "" });
+/**
+ * Fills fields added after a contact was created. Staff always show the
+ * company name from Company Details (`companyName`), whatever is stored.
+ */
+const normalize = (c: Contact, companyName?: string): Contact => ({
+  ...c,
+  defaultRole: c.defaultRole ?? "",
+  ...(c.userEmail && companyName !== undefined ? { company: companyName } : {}),
+});
+const companyName = async () => (await getSettings()).name;
 
 const byName = (a: Contact, b: Contact) =>
   a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName) || a.email.localeCompare(b.email);
 
 export async function listContacts(): Promise<Contact[]> {
-  const snap = await contactsCol().get();
-  return snap.docs.map((d) => normalize(d.data() as Contact)).sort(byName);
+  const [snap, company] = await Promise.all([contactsCol().get(), companyName()]);
+  return snap.docs.map((d) => normalize(d.data() as Contact, company)).sort(byName);
 }
 
 export async function getContact(id: string): Promise<Contact> {
-  const snap = await contactsCol().doc(id).get();
+  const [snap, company] = await Promise.all([contactsCol().doc(id).get(), companyName()]);
   if (!snap.exists) throw new UserError("Contact not found.");
-  return normalize(snap.data() as Contact);
+  return normalize(snap.data() as Contact, company);
 }
 
 export async function getContactsByIds(ids: string[]): Promise<Map<string, Contact>> {
   if (!ids.length) return new Map();
-  const snaps = await db().getAll(...ids.map((id) => contactsCol().doc(id)));
-  return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, normalize(s.data() as Contact)]));
+  const [snaps, company] = await Promise.all([db().getAll(...ids.map((id) => contactsCol().doc(id))), companyName()]);
+  return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, normalize(s.data() as Contact, company)]));
 }
 
 export async function findContactByEmail(email: string, tx?: Transaction): Promise<Contact | null> {
@@ -91,7 +100,9 @@ export async function updateContact(id: string, input: ContactInput): Promise<vo
       const existing = await findContactByEmail(c.email, tx);
       if (existing) throw new DuplicateContactError(existing);
     }
-    tx.update(ref, { ...c, emailKey: emailKey(c.email), updatedAt: now() });
+    // Staff belong to this company; their company comes from Company Details.
+    const { company, ...rest } = c;
+    tx.update(ref, { ...rest, ...(current.userEmail ? {} : { company }), emailKey: emailKey(c.email), updatedAt: now() });
   });
 }
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetEmulators } from "../support/fixtures";
 import { createContact, deleteContacts, DuplicateContactError, getContact, listContacts, updateContact } from "@/server/services/contacts";
 import { projectContactRows } from "@/server/services/tables";
+import { updateSettings } from "@/server/services/settings";
 import {
   addProjectContacts,
   createProject,
@@ -143,5 +144,23 @@ describe("roles and deleting contacts", () => {
     await addUser("staff@example.com", "editor", { firstName: "Sam", lastName: "Staff" });
     const staff = (await listContacts()).find((c) => c.userEmail)!;
     await expect(deleteContacts([staff.id])).rejects.toThrow(/staff/);
+  });
+});
+
+describe("staff company", () => {
+  it("is the company name from Company Details and can't be changed on the contact", async () => {
+    await updateSettings({ name: "Example Engineering" });
+    await addUser("staff@example.com", "editor", { firstName: "Sam", lastName: "Staff" });
+    const staff = (await listContacts()).find((c) => c.userEmail)!;
+    expect(staff.company).toBe("Example Engineering");
+    await updateContact(staff.id, { ...staff, company: "Someone Else Inc" });
+    expect((await getContact(staff.id)).company).toBe("Example Engineering");
+    await updateSettings({ name: "Example Engineering Ltd" });
+    expect((await getContact(staff.id)).company).toBe("Example Engineering Ltd");
+
+    // External contacts keep their own company.
+    const ext = await createContact(person("ext@example.com"));
+    await updateContact(ext.id, { ...ext, company: "New Co" });
+    expect((await getContact(ext.id)).company).toBe("New Co");
   });
 });

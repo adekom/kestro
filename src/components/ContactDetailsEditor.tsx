@@ -42,7 +42,8 @@ function Editor({ contact, onSaved }: { contact: Contact; onSaved?: () => void }
         id={`cd-${k}`}
         type={type}
         value={fields[k]}
-        disabled={k === "email" && Boolean(contact.userEmail)}
+        // Staff: the email is their sign-in address and the company is this company (Company Details).
+        disabled={(k === "email" || k === "company") && Boolean(contact.userEmail)}
         onChange={(v) => setFields((f) => ({ ...f, [k]: v }))}
       />
     </div>

@@ -50,7 +50,7 @@ export function ContactForm({
         type={opts.type ?? "text"}
         required={opts.required}
         autoComplete={opts.autoComplete}
-        disabled={k === "email" && emailLocked}
+        disabled={(k === "email" || k === "company") && emailLocked}
         aria-invalid={k === "email" && duplicate ? true : undefined}
         value={fields[k]}
         onChange={(e) => {
