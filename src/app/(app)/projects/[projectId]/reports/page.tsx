@@ -2,7 +2,7 @@ import { requirePageUser } from "@/server/auth";
 import { getContact } from "@/server/services/contacts";
 import { getProject } from "@/server/services/projects";
 import { reportSummaries } from "@/server/services/reports";
-import { getSettings } from "@/server/services/settings";
+import { getProjectSettings } from "@/server/services/settings";
 import { contactName, formatLongDate, reportLabel } from "@/lib/domain";
 import { FieldReportsTable } from "./FieldReportsTable";
 
@@ -12,7 +12,7 @@ export default async function FieldReportsPage({ params }: { params: Promise<{ p
     requirePageUser(),
     getProject(projectId),
     reportSummaries(projectId),
-    getSettings(),
+    getProjectSettings(projectId),
   ]);
   const me = user.contactId ? await getContact(user.contactId).catch(() => null) : null;
   const rows = summaries.map(({ report: r, statusCounts }) => ({

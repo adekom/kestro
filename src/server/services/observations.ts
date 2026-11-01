@@ -3,13 +3,13 @@ import { db } from "../firebaseAdmin";
 import { membershipsCol, observationDoc, observationsCol, reportDoc, statusEventsCol, updatesCol, projectDoc } from "../paths";
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
-import { getSettings } from "./settings";
+import { getProjectSettings } from "./settings";
 import { renumberReport } from "./reportOrder";
 import { isIsoDate } from "@/lib/domain";
 import type { Membership, Observation, ObservationUpdate, Report, StatusEvent, Project } from "@/lib/types";
 
-async function assertStatus(statusId: string): Promise<void> {
-  const { statuses } = await getSettings();
+async function assertStatus(pid: string, statusId: string): Promise<void> {
+  const { statuses } = await getProjectSettings(pid);
   if (!statuses.some((s) => s.id === statusId)) throw new UserError("Unknown status.");
 }
 
@@ -40,7 +40,7 @@ export interface NewObservationInput {
  */
 export async function createObservation(pid: string, rid: string, input: NewObservationInput): Promise<string> {
   if (!input.title.trim()) throw new UserError("Observation title is required.");
-  await assertStatus(input.statusId);
+  await assertStatus(pid, input.statusId);
   const oid = newId();
   await db().runTransaction(async (tx) => {
     const reportRef = reportDoc(pid, rid);
@@ -131,7 +131,7 @@ export async function updateObservation(
  * event rather than adding noise to the history.
  */
 export async function setStatusInReport(pid: string, oid: string, rid: string, statusId: string): Promise<void> {
-  await assertStatus(statusId);
+  await assertStatus(pid, statusId);
   const report = await liveReport(pid, rid);
   const existing = await statusEventsCol(pid, oid).where("reportId", "==", rid).limit(1).get();
   if (!existing.empty) {

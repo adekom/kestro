@@ -8,12 +8,25 @@ import { InlineText } from "@/components/ui/InlineEdit";
 
 const PALETTE = ["#C2410C", "#B45309", "#2563EB", "#7C3AED", "#15803D", "#475569"];
 
+type SaveStatuses = (statuses: Array<{ id: string; label: string; color: string }>, resolvedIndex: number) => Promise<{ ok: true } | { ok: false; error: string }>;
+
 /**
- * Organization-wide status catalog. Exactly one status is designated
- * "resolved" (by ID); it only affects which observations are preselected
- * when carrying forward into the next report.
+ * A status catalog (the company's, or a project's own). Exactly one status is
+ * designated "resolved" (by ID); it only affects which observations are
+ * preselected when carrying forward into the next report.
  */
-export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: StatusDef[]; resolvedStatusId: string }) {
+export function StatusesEditor({
+  statuses,
+  resolvedStatusId,
+  onSave = (list, resolvedIndex) => saveStatusesAction(list, resolvedIndex),
+  embedded = false,
+}: {
+  statuses: StatusDef[];
+  resolvedStatusId: string;
+  onSave?: SaveStatuses;
+  /** Inside another section: no card, heading or intro. */
+  embedded?: boolean;
+}) {
   const sorted = [...statuses].sort((a, b) => a.order - b.order);
   // `key` identifies a row on screen; `id` is empty until the status is saved.
   const [items, setItems] = useState(sorted.map(({ id, label, color }) => ({ key: id, id, label, color })));
@@ -30,12 +43,16 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
   };
 
   return (
-    <section className="card p-4">
-      <h2 className="field-inset mb-1 text-sm font-semibold">Observation statuses</h2>
-      <p className="field-inset mb-3 text-xs text-text-muted">
-        Renaming or recoloring keeps all history. The resolved status is excluded by default when carrying observations into
-        the next report. A status in use cannot be removed.
-      </p>
+    <section className={embedded ? "" : "card p-4"}>
+      {!embedded && (
+        <>
+          <h2 className="field-inset mb-1 text-sm font-semibold">Observation statuses</h2>
+          <p className="field-inset mb-3 text-xs text-text-muted">
+            Renaming or recoloring keeps all history. The resolved status is excluded by default when carrying observations into
+            the next report. A status in use cannot be removed.
+          </p>
+        </>
+      )}
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-text-muted">
           <tr>
@@ -88,7 +105,7 @@ export function StatusesEditor({ statuses, resolvedStatusId }: { statuses: Statu
           type="button"
           className="btn btn-primary"
           onClick={async () => {
-            const res = await saveStatusesAction(items.map(({ id, label, color }) => ({ id, label, color })), resolvedIndex);
+            const res = await onSave(items.map(({ id, label, color }) => ({ id, label, color })), resolvedIndex);
             setMessage(res.ok ? { ok: true, text: "Statuses saved." } : { ok: false, text: res.error });
           }}
         >

@@ -60,6 +60,22 @@ export async function setProjectOptionsAction(pid: string, options: projects.Pro
   });
 }
 
+export async function setProjectStatusesAction(pid: string, statuses: settings.StatusInput, resolvedIndex: number) {
+  return toResult(async () => {
+    await requireUser();
+    await projects.setProjectStatuses(pid, statuses, resolvedIndex);
+    revalidatePath(`/projects/${pid}`, "layout");
+  });
+}
+
+export async function revertToCompanyStatusesAction(pid: string) {
+  return toResult(async () => {
+    await requireUser();
+    await projects.useCompanyStatuses(pid);
+    revalidatePath(`/projects/${pid}`, "layout");
+  });
+}
+
 export async function saveGroupsAction(pid: string, groups: Array<{ id?: string; name: string }>) {
   return toResult(async () => {
     await requireUser();
@@ -117,7 +133,7 @@ export async function removeProjectContactsAction(pid: string, contactIds: strin
 export async function carryForwardCandidatesAction(pid: string, sourceRid: string) {
   return toResult(async () => {
     await requireUser();
-    const { resolvedStatusId } = await settings.getSettings();
+    const { resolvedStatusId } = await settings.getProjectSettings(pid);
     return reports.carryForwardCandidates(pid, sourceRid, resolvedStatusId);
   });
 }

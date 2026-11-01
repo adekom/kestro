@@ -73,6 +73,8 @@ export interface Project {
   summaryOverride: SummaryOverride;
   /** Reports record the weather during the visit. */
   includeWeather: boolean;
+  /** Project-specific statuses; null uses the company standard. IDs match the company's where copied. */
+  statusOverride?: { statuses: StatusDef[]; resolvedStatusId: string } | null;
   groups: Group[];
   archived: boolean;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */

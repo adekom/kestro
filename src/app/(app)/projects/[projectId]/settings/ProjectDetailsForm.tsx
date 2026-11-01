@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore } from "lucide-react";
-import { setProjectArchivedAction, setProjectOptionsAction, updateProjectAction } from "@/app/actions";
+import { setProjectArchivedAction, setProjectOptionsAction, setProjectStatusesAction, updateProjectAction, revertToCompanyStatusesAction } from "@/app/actions";
+import { StatusBadge } from "@/components/StatusBadge";
+import { StatusesEditor } from "@/app/(app)/settings/StatusesEditor";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
-import type { Project, SummaryOverride } from "@/lib/types";
+import type { Project, StatusDef, SummaryOverride } from "@/lib/types";
 
 export function ProjectDetailsForm({ project }: { project: Project }) {
   return (
@@ -135,6 +137,61 @@ export function ArchiveProject({ project }: { project: Project }) {
           {project.archived ? "will return to the active project list." : "will move to the Archived tab."}
         </p>
       </ConfirmDialog>
+    </section>
+  );
+}
+
+/**
+ * The project's observation statuses: the company standard, or the project's
+ * own list (starting as a copy of the company's, so existing history keeps
+ * its meaning).
+ */
+export function ProjectStatuses({ project, company }: { project: Project; company: { statuses: StatusDef[]; resolvedStatusId: string } }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const custom = project.statusOverride ?? null;
+  return (
+    <section className="card space-y-3 p-4" aria-labelledby="statuses-heading">
+      <h2 id="statuses-heading" className="field-inset text-sm font-semibold">Observation statuses</h2>
+      <div>
+        <label className="label" htmlFor="p-statuses">Statuses for this project</label>
+        <InlineSelect
+          id="p-statuses"
+          value={custom ? "custom" : "company"}
+          onCommit={async (v) => {
+            const res =
+              v === "custom"
+                ? await setProjectStatusesAction(project.id, company.statuses, Math.max(0, company.statuses.findIndex((s) => s.id === company.resolvedStatusId)))
+                : await revertToCompanyStatusesAction(project.id);
+            setError(res.ok ? null : res.error);
+            if (res.ok) router.refresh();
+          }}
+          options={[
+            { value: "company", label: "Use company standard" },
+            { value: "custom", label: "Customize for this project" },
+          ]}
+        />
+      </div>
+      {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
+      {custom ? (
+        <StatusesEditor
+          key={custom.statuses.map((s) => s.id + s.label + s.color).join() + custom.resolvedStatusId}
+          embedded
+          statuses={custom.statuses}
+          resolvedStatusId={custom.resolvedStatusId}
+          onSave={async (list, resolvedIndex) => {
+            const res = await setProjectStatusesAction(project.id, list, resolvedIndex);
+            if (res.ok) router.refresh();
+            return res;
+          }}
+        />
+      ) : (
+        <ul className="field-inset flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          {[...company.statuses].sort((a, b) => a.order - b.order).map((s) => (
+            <li key={s.id}><StatusBadge status={s} />{s.id === company.resolvedStatusId && <span className="ml-1 text-xs text-text-muted">(resolved)</span>}</li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

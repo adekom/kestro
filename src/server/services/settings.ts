@@ -1,8 +1,8 @@
 import "server-only";
-import { settingsDoc } from "../paths";
+import { projectDoc, settingsDoc } from "../paths";
 import { now, newId } from "../time";
 import { UserError } from "../errors";
-import type { OrgSettings, StatusDef } from "@/lib/types";
+import type { OrgSettings, Project, StatusDef } from "@/lib/types";
 
 // Generic defaults only — every firm configures its own identity after setup.
 export const DEFAULT_SETTINGS: OrgSettings = {
@@ -42,11 +42,15 @@ export async function updateSettings(patch: SettingsPatch): Promise<void> {
  * `isReferenced` reports whether a removed status is still used by any
  * observation history, in which case removal is refused (spec §5.2).
  */
-export async function saveStatuses(
-  input: Array<Omit<StatusDef, "id" | "order"> & { id?: string }>,
+export type StatusInput = Array<Omit<StatusDef, "id" | "order"> & { id?: string }>;
+
+/** Validates a status list; new statuses get IDs. Refuses removing statuses still in use. */
+export async function normalizeStatuses(
+  input: StatusInput,
   resolvedIndex: number,
+  current: StatusDef[],
   isReferenced: (statusId: string) => Promise<boolean>,
-): Promise<void> {
+): Promise<{ statuses: StatusDef[]; resolvedStatusId: string }> {
   if (input.length === 0) throw new UserError("At least one status is required.");
   if (resolvedIndex < 0 || resolvedIndex >= input.length) throw new UserError("Choose exactly one resolved status.");
   const statuses: StatusDef[] = input.map((s, order) => {
@@ -55,14 +59,26 @@ export async function saveStatuses(
     if (!HEX.test(s.color)) throw new UserError(`"${label}" needs a #RRGGBB color.`);
     return { id: s.id || newId(), label, color: s.color.toUpperCase(), order };
   });
-  const current = await getSettings();
   const keptIds = new Set(statuses.map((s) => s.id));
-  for (const removed of current.statuses.filter((s) => !keptIds.has(s.id))) {
+  for (const removed of current.filter((s) => !keptIds.has(s.id))) {
     if (await isReferenced(removed.id)) {
       throw new UserError(`"${removed.label}" is still used by observations. Reassign them before removing it.`);
     }
   }
-  await settingsDoc().set({ ...current, statuses, resolvedStatusId: statuses[resolvedIndex].id, updatedAt: now() });
+  return { statuses, resolvedStatusId: statuses[resolvedIndex].id };
+}
+
+export async function saveStatuses(input: StatusInput, resolvedIndex: number, isReferenced: (statusId: string) => Promise<boolean>): Promise<void> {
+  const current = await getSettings();
+  const next = await normalizeStatuses(input, resolvedIndex, current.statuses, isReferenced);
+  await settingsDoc().set({ ...current, ...next, updatedAt: now() });
+}
+
+/** Organization settings with the project's own statuses when it has them. */
+export async function getProjectSettings(pid: string): Promise<OrgSettings> {
+  const [settings, snap] = await Promise.all([getSettings(), projectDoc(pid).get()]);
+  const override = (snap.data() as Project | undefined)?.statusOverride;
+  return override ? { ...settings, statuses: override.statuses, resolvedStatusId: override.resolvedStatusId } : settings;
 }
 
 export async function setLogoPath(logoPath: string | null): Promise<void> {

@@ -5,6 +5,7 @@ import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { groupNameKey } from "@/lib/domain";
 import { getContactsByIds } from "./contacts";
+import { getSettings, normalizeStatuses, type StatusInput } from "./settings";
 import type { Group, Project, ProjectContact, SummaryOverride } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
@@ -85,6 +86,37 @@ export async function setProjectOptions(pid: string, options: ProjectOptions): P
   }
   if (options.includeWeather !== undefined) patch.includeWeather = Boolean(options.includeWeather);
   await projectDoc(pid).update({ ...patch, updatedAt: now() });
+}
+
+/** Status IDs used by this project's observations (current and historical). */
+async function statusesUsedInProject(pid: string): Promise<Set<string>> {
+  const observations = await projectDoc(pid).collection("observations").get();
+  const events = await Promise.all(observations.docs.map((d) => d.ref.collection("statusEvents").get()));
+  return new Set(events.flatMap((snap) => snap.docs.map((d) => d.get("statusId") as string)));
+}
+
+/** Gives the project its own status list (start from the company's to keep history meaningful). */
+export async function setProjectStatuses(pid: string, input: StatusInput, resolvedIndex: number): Promise<void> {
+  const project = await getProject(pid);
+  const current = project.statusOverride?.statuses ?? (await getSettings()).statuses;
+  const used = await statusesUsedInProject(pid);
+  const next = await normalizeStatuses(input, resolvedIndex, current, async (id) => used.has(id));
+  await projectDoc(pid).update({ statusOverride: next, updatedAt: now() });
+}
+
+/** Returns the project to the company standard, if every status it uses still exists there. */
+export async function useCompanyStatuses(pid: string): Promise<void> {
+  const project = await getProject(pid);
+  if (!project.statusOverride) return;
+  const company = new Set((await getSettings()).statuses.map((s) => s.id));
+  const used = await statusesUsedInProject(pid);
+  const missing = project.statusOverride.statuses.filter((s) => used.has(s.id) && !company.has(s.id));
+  if (missing.length) {
+    throw new UserError(
+      `This project uses ${missing.map((s) => `"${s.label}"`).join(", ")}, which the company standard doesn't have. Change those observations' status first.`,
+    );
+  }
+  await projectDoc(pid).update({ statusOverride: null, updatedAt: now() });
 }
 
 export async function setProjectArchived(pid: string, archived: boolean): Promise<void> {

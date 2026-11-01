@@ -3,7 +3,7 @@ import { attachmentsCol, membershipsCol, observationDoc, photosCol, updatesCol }
 import { UserError } from "../errors";
 import { getMemberships, getReport, getStatusEvents, listReports, reportSequenceMap } from "./reports";
 import { getProject } from "./projects";
-import { getSettings } from "./settings";
+import { getProjectSettings } from "./settings";
 import { deletedReportIds } from "./reportDeletion";
 import { reportDisplayOrder } from "@/lib/reportOrder";
 import { applicableToReport, formatLongDate, observationNumber, reportLabel, sortStatusEvents, statusOn } from "@/lib/domain";
@@ -44,7 +44,7 @@ export interface ReportView {
  */
 export async function buildReportView(pid: string, rid: string): Promise<ReportView> {
   const [settings, project, report, memberships, seqMap, hidden] = await Promise.all([
-    getSettings(),
+    getProjectSettings(pid),
     getProject(pid),
     getReport(pid, rid),
     getMemberships(pid, rid),
@@ -134,7 +134,7 @@ export interface ObservationDetail {
  */
 export async function getObservationDetail(pid: string, oid: string, rid: string | null): Promise<ObservationDetail> {
   const [settings, project, reports, seqMap, hidden] = await Promise.all([
-    getSettings(),
+    getProjectSettings(pid),
     getProject(pid),
     listReports(pid),
     reportSequenceMap(pid),
