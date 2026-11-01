@@ -102,6 +102,8 @@ describe("updates", () => {
     const pid = await newProject();
     const r1 = await report(pid, "2026-07-14");
     const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "nonconforming", groupId: null });
+    // Not in the report where it was created: the description is the record there.
+    await expect(addUpdate(pid, oid, r1, "Too early")).rejects.toThrow(/later reports/);
     const r2 = await report(pid, "2026-07-28", r1, [oid]);
     const first = await addUpdate(pid, oid, r2, "Sealant applied");
     await expect(addUpdate(pid, oid, r2, "Second note")).rejects.toThrow(/already has an update/);
