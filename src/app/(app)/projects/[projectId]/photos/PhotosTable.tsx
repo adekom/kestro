@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, ExternalLink, Link2, Link2Off } from "lucide-react";
+import Link from "next/link";
+import { Download, ExternalLink, FileText, Link2, Link2Off } from "lucide-react";
 import { revokeShareAction, shareLinkAction } from "@/app/actions";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -80,13 +81,28 @@ function PhotoDetails({ projectId, row, isAdmin, onChanged }: { projectId: strin
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const reportLink = (p: PhotoRow["mostRecent"]) => (p ? `/projects/${projectId}/reports/${p.reportId}?obs=${p.observationId}` : null);
   return (
     <div className="space-y-6">
+      {(row.mostRecent || row.firstAdded) && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {row.mostRecent && (
+            <Link className="btn" href={reportLink(row.mostRecent)!}>
+              <FileText className="h-4 w-4" aria-hidden /> Go to most recent report that contains this photo
+            </Link>
+          )}
+          {row.firstAdded && (
+            <Link className="btn" href={reportLink(row.firstAdded)!}>
+              <FileText className="h-4 w-4" aria-hidden /> Go to report where this photo was first added
+            </Link>
+          )}
+        </div>
+      )}
       <a href={photoUrl(projectId, photo.id, "web")} target="_blank" rel="noopener" title="Open full image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photoUrl(projectId, photo.id, "web")} alt={photo.fileName} className="aspect-square w-full rounded-md object-cover" />
       </a>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 pt-3 text-sm">
         <div>
           <dt className="label">Uploaded</dt>
           <dd className="field-inset">{formatLongDate(photo.createdAt.slice(0, 10))}</dd>
@@ -110,10 +126,7 @@ function PhotoDetails({ projectId, row, isAdmin, onChanged }: { projectId: strin
                 <span className="font-medium">{u.number}</span> {u.title}
                 {u.detached && <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-xs text-text-muted">detached</span>}
               </div>
-              <div className="text-xs text-text-muted">
-                Added in {u.reportLabel}
-                {u.caption && <> · “{u.caption}”</>}
-              </div>
+              {u.caption && <div className="text-xs text-text-muted">“{u.caption}”</div>}
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"

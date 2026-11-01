@@ -264,3 +264,20 @@ describe("photos, public links and PDF", () => {
     expect((await buildReportView(pid, later)).observations[0].attachments).toHaveLength(2);
   });
 });
+
+describe("photo report links", () => {
+  it("finds the report where a photo was first added and the latest report that contains it", async () => {
+    const pid = await newProject();
+    const r1 = await report(pid, "2026-07-14");
+    const oid = await createObservation(pid, r1, { title: "Leak", description: "", statusId: "nonconforming", groupId: null });
+    const r2 = await report(pid, "2026-07-28", r1, [oid]);
+    const bytes = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#888" } }).png().toBuffer();
+    await uploadPhoto(pid, r2, oid, { name: "a.png", bytes }, "t");
+    const r3 = await report(pid, "2026-08-11", r2, [oid]);
+    await report(pid, "2026-08-25", r3, []); // doesn't include the observation
+    const [row] = await photoRows(pid);
+    expect(row.firstAdded).toEqual({ reportId: r2, observationId: oid });
+    expect(row.mostRecent).toEqual({ reportId: r3, observationId: oid });
+  });
+});
+

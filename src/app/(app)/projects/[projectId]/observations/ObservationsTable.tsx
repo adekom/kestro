@@ -65,11 +65,14 @@ export function ObservationsTable({
         activeRowId={openId}
         initialSort={{ id: "number", dir: "asc" }}
         emptyMessage="No observations yet. Observations are added in field reports."
-        rowActions={(r) =>
-          r.latestReportId
+        rowActions={(r) => [
+          ...(r.latestReportId
             ? [{ label: "Go to most recent report that includes observation", icon: FileText, onSelect: () => router.push(`/projects/${projectId}/reports/${r.latestReportId}?obs=${r.id}`) }]
-            : []
-        }
+            : []),
+          ...(r.originReportId !== r.latestReportId
+            ? [{ label: "Go to report where observation was first added", icon: FileText, onSelect: () => router.push(`/projects/${projectId}/reports/${r.originReportId}?obs=${r.id}`) }]
+            : []),
+        ]}
       />
       <ObservationSlideOver projectId={projectId} observationId={openId} readOnly onClose={() => setOpenId(null)} />
     </>

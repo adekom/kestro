@@ -20,6 +20,8 @@ export interface ObservationRow {
   originalDate: string;
   /** Most recent report that includes it, where it is edited. */
   latestReportId: string | null;
+  /** Report where the observation was first added. */
+  originReportId: string;
 }
 
 /** Every live observation in the project with its current (latest) status. */
@@ -40,6 +42,7 @@ export async function observationRows(pid: string): Promise<ObservationRow[]> {
       groupId: o.groupId,
       originalDate: o.originalDate,
       latestReportId: latest.get(o.id) ?? null,
+      originReportId: o.originReportId,
     })),
   );
 }
@@ -76,6 +79,10 @@ export interface PhotoUse {
 export interface PhotoRow {
   photo: Photo;
   uses: PhotoUse[];
+  /** Report (and observation) for "go to most recent report that contains this photo". */
+  mostRecent: { reportId: string; observationId: string } | null;
+  /** Report (and observation) where the photo was first added. */
+  firstAdded: { reportId: string; observationId: string } | null;
 }
 
 /** Every photo in the project library, with where it is attached. */
@@ -90,6 +97,13 @@ export async function photoRows(pid: string): Promise<PhotoRow[]> {
   const seqMap = new Map(reports.map((r) => [r.id, r.sequence]));
   const numbering = await numberingFor(pid, seqMap);
   const obsById = new Map(observations.map((o) => [o.id, o]));
+  // Which reports include each observation, latest last.
+  const memberships = await Promise.all(reports.map((r) => getMemberships(pid, r.id)));
+  const reportsByObs = new Map<string, string[]>();
+  reports.forEach((r, i) => memberships[i].forEach((m) => reportsByObs.set(m.observationId, [...(reportsByObs.get(m.observationId) ?? []), r.id])));
+  type Place = { reportId: string; observationId: string; seq: number };
+  const latestByPhoto = new Map<string, Place>();
+  const firstByPhoto = new Map<string, Place>();
   const usesByPhoto = new Map<string, PhotoUse[]>();
   for (const d of attachments.docs) {
     const a = d.data() as PhotoAttachment;
@@ -107,6 +121,20 @@ export async function photoRows(pid: string): Promise<PhotoRow[]> {
       shared: Boolean(a.shareToken),
     };
     usesByPhoto.set(a.photoId, [...(usesByPhoto.get(a.photoId) ?? []), use]);
+    if (a.detachedAt || seq === undefined) continue;
+    const first = firstByPhoto.get(a.photoId);
+    if (!first || seq < first.seq) firstByPhoto.set(a.photoId, { reportId: a.reportId, observationId: o.id, seq });
+    // The photo appears from the report it was added in onwards, in reports that include the observation.
+    const latestRid = (reportsByObs.get(o.id) ?? []).filter((rid) => (seqMap.get(rid) ?? 0) >= seq).at(-1);
+    const latestSeq = latestRid ? (seqMap.get(latestRid) ?? 0) : 0;
+    const latest = latestByPhoto.get(a.photoId);
+    if (latestRid && (!latest || latestSeq > latest.seq)) latestByPhoto.set(a.photoId, { reportId: latestRid, observationId: o.id, seq: latestSeq });
   }
-  return photos.map((photo) => ({ photo, uses: usesByPhoto.get(photo.id) ?? [] }));
+  const place = (p: Place | undefined) => (p ? { reportId: p.reportId, observationId: p.observationId } : null);
+  return photos.map((photo) => ({
+    photo,
+    uses: usesByPhoto.get(photo.id) ?? [],
+    mostRecent: place(latestByPhoto.get(photo.id)),
+    firstAdded: place(firstByPhoto.get(photo.id)),
+  }));
 }

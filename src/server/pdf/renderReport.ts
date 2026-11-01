@@ -123,6 +123,9 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     heading("Attendance", 30, SECTION_SIZE);
     const who = (a: { id: string; name: string; company: string }) => view.attendees[a.id] ?? { name: a.name, firstName: a.name, company: a.company, role: "" };
     const col = { company: 165, role: 315, present: CONTENT_W - 50 };
+    const hr = () => doc.moveTo(M.left, doc.y).lineTo(PAGE.width - M.right, doc.y).lineWidth(0.25).strokeColor(RULE).stroke();
+    hr();
+    doc.moveDown(0.3);
     for (const a of sortAttendance(report.attendees, show.attendanceOrder, who)) {
       const p = who(a);
       ensureSpace(14);
@@ -136,6 +139,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       doc.fillColor(INK).text(a.present ? "Present" : "Absent", M.left + col.present, y, { width: CONTENT_W - col.present });
       doc.y = Math.max(yName, yCompany, yRole, y + 13);
     }
+    doc.moveDown(0.2);
+    hr();
     doc.moveDown(0.8);
   }
   };

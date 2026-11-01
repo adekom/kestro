@@ -309,10 +309,15 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
   );
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
         <Link className="btn shrink-0" href={`/projects/${projectId}/reports/${report.id}?obs=${o.id}`}>
           <FileText className="h-4 w-4" aria-hidden /> Go to most recent report that includes observation
         </Link>
+        {o.originReportId !== report.id && (
+          <Link className="btn shrink-0" href={`/projects/${projectId}/reports/${o.originReportId}?obs=${o.id}`}>
+            <FileText className="h-4 w-4" aria-hidden /> Go to report where observation was first added
+          </Link>
+        )}
       </div>
       <section className="grid grid-cols-2 gap-3">
         {fact("Status", <StatusBadge status={statusById.get(item.statusId ?? "")} />)}
