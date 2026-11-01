@@ -1,16 +1,23 @@
 import "server-only";
 import { db } from "../firebaseAdmin";
-import { membershipsCol, observationDoc, observationsCol, reportDoc, statusEventsCol, updatesCol } from "../paths";
+import { membershipsCol, observationDoc, observationsCol, reportDoc, statusEventsCol, updatesCol, projectDoc } from "../paths";
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { getSettings } from "./settings";
 import { renumberReport } from "./reportOrder";
 import { isIsoDate } from "@/lib/domain";
-import type { Membership, Observation, ObservationUpdate, Report, StatusEvent } from "@/lib/types";
+import type { Membership, Observation, ObservationUpdate, Report, StatusEvent, Project } from "@/lib/types";
 
 async function assertStatus(statusId: string): Promise<void> {
   const { statuses } = await getSettings();
   if (!statuses.some((s) => s.id === statusId)) throw new UserError("Unknown status.");
+}
+
+/** When a project defines groups, every observation must be in one of them. */
+function assertGroup(project: Project | undefined, groupId: string | null): void {
+  const groups = project?.groups ?? [];
+  if (groups.length === 0) return;
+  if (!groupId || !groups.some((g) => g.id === groupId)) throw new UserError("Choose a group for this observation.");
 }
 
 async function liveReport(pid: string, rid: string): Promise<Report> {
@@ -39,6 +46,7 @@ export async function createObservation(pid: string, rid: string, input: NewObse
     const reportRef = reportDoc(pid, rid);
     const report = (await tx.get(reportRef)).data() as Report | undefined;
     if (!report || report.deletedAt) throw new UserError("Report not found.");
+    assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, input.groupId);
     const last = await tx.get(membershipsCol(pid, rid).orderBy("order", "desc").limit(1));
     const order = last.empty ? 0 : (last.docs[0].data() as Membership).order + 1;
 
@@ -102,7 +110,10 @@ export async function updateObservation(
     const obs = (await tx.get(ref)).data() as Observation | undefined;
     if (!obs || obs.deletedAt) throw new UserError("Observation not found.");
     if (obs.version !== expectedVersion) throw new ConflictError();
-    if (clean.groupId !== undefined && (clean.groupId ?? null) !== (obs.groupId ?? null)) regroupedIn = obs.originReportId;
+    if (clean.groupId !== undefined && (clean.groupId ?? null) !== (obs.groupId ?? null)) {
+      assertGroup((await tx.get(projectDoc(pid))).data() as Project | undefined, clean.groupId ?? null);
+      regroupedIn = obs.originReportId;
+    }
     const touchesOriginal = clean.title !== undefined || clean.description !== undefined || clean.originalDate !== undefined;
     if (touchesOriginal && obs.originReportId !== inReportId) {
       throw new UserError("The original observation can only be edited in the report where it was created. Add an update instead.");

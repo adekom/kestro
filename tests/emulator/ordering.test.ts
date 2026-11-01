@@ -58,11 +58,18 @@ describe("observation numbering follows the report's order", () => {
     const { pid, ext, l1, r1, obs } = await setup();
     const x = await obs(r1, "X", l1);
     await obs(r1, "Y", l1);
-    await updateObservation(pid, x, { groupId: null }, 1, r1); // ungrouped goes last
-    expect(await listing(pid, r1)).toEqual(["1.1 Y", "1.2 X"]);
+    await updateObservation(pid, x, { groupId: ext }, 1, r1); // Exterior comes before Level 1
+    expect(await listing(pid, r1)).toEqual(["1.1 X", "1.2 Y"]);
     const z = await obs(r1, "Z", ext);
-    expect(await listing(pid, r1)).toEqual(["1.1 Z", "1.2 Y", "1.3 X"]);
+    expect(await listing(pid, r1)).toEqual(["1.1 X", "1.2 Z", "1.3 Y"]);
     await removeMembership(pid, r1, z);
-    expect(await listing(pid, r1)).toEqual(["1.1 Y", "1.2 X"]);
+    expect(await listing(pid, r1)).toEqual(["1.1 X", "1.2 Y"]);
+  });
+
+  it("requires a group when the project defines groups", async () => {
+    const { pid, l1, r1, obs } = await setup();
+    await expect(obs(r1, "No group", null)).rejects.toThrow(/Choose a group/);
+    const x = await obs(r1, "X", l1);
+    await expect(updateObservation(pid, x, { groupId: null }, 1, r1)).rejects.toThrow(/Choose a group/);
   });
 });

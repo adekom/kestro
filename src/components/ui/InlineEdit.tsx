@@ -260,6 +260,9 @@ export function InlineSelect(props: ValueProps & { options: Array<{ value: strin
         }
       }}
     >
+      {!props.options.some((o) => o.value === s.current) && (
+        <option value={s.current} disabled>{props.placeholder ?? "Choose…"}</option>
+      )}
       {props.options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
       ))}

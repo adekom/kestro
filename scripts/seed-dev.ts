@@ -110,7 +110,7 @@ const PROJECTS: ProjectSpec[] = [
       { at: 4, group: "Exterior", title: "Downspout not connected to storm leader", description: "The downspout at the northeast corner discharges onto grade beside the foundation; connect it to the storm leader per civil plans.", status: "open", later: { 5: { update: "Connected to storm leader.", status: "resolved" } } },
       { at: 5, group: "Roof", title: "Membrane seam lifted near roof hatch", description: "A membrane seam has lifted roughly 18\" near the roof hatch curb. Heat-weld and probe all seams within 10 feet of the hatch.", status: "open" },
       { at: 5, group: "Level 1", title: "Incorrect door hardware at Unit 101", description: "The entry door at Unit 101 has a passage lever; hardware set HW-4 requires a deadbolt and an ADA-compliant lever.", status: "open" },
-      { at: 5, title: "Construction schedule not posted in site office", description: "The current three-week look-ahead schedule is not posted in the site office as required by the general conditions.", status: "open" },
+      { at: 5, group: "Site", title: "Construction schedule not posted in site office", description: "The current three-week look-ahead schedule is not posted in the site office as required by the general conditions.", status: "open" },
     ],
   },
   {

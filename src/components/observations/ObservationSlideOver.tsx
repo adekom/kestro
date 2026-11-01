@@ -141,10 +141,7 @@ function ObservationEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 rounded-md bg-surface-muted px-3 py-2 text-xs text-text-muted">
-        <span>
-          Status, updates and photos are recorded in <span className="font-medium text-text">{detail.reportLabel}</span>.
-        </span>
+      <div className="flex min-h-5 justify-end">
         <SaveIndicator />
       </div>
       {conflict && (
@@ -172,16 +169,18 @@ function ObservationEditor({
               onChange={(statusId) => run(setStatusAction(projectId, report.id, o.id, statusId))}
             />
           </div>
-          <div>
-            <label className="label" htmlFor="obs-group">Group</label>
-            <InlineSelect
-              id="obs-group"
-              value={fields.groupId ?? ""}
-              disabled={groups.length === 0}
-              onChange={(v) => setFields({ ...fields, groupId: v || null })}
-              options={[{ value: "", label: groups.length ? "None" : "No groups defined" }, ...groups.map((g) => ({ value: g.id, label: g.name }))]}
-            />
-          </div>
+          {groups.length > 0 && (
+            <div>
+              <label className="label" htmlFor="obs-group">Group</label>
+              <InlineSelect
+                id="obs-group"
+                value={fields.groupId ?? ""}
+                placeholder="Choose a group"
+                onChange={(v) => setFields({ ...fields, groupId: v || null })}
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+              />
+            </div>
+          )}
         </div>
         {!carriedForward && (
           <div>
@@ -294,17 +293,14 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
   );
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 rounded-md bg-surface-muted px-3 py-2 text-xs text-text-muted">
-        <span>
-          As of <span className="font-medium text-text">{detail.reportLabel}</span>. Edit observations from their field report.
-        </span>
+      <div className="flex justify-end">
         <Link className="btn shrink-0" href={`/projects/${projectId}/reports/${report.id}?obs=${o.id}`}>
-          <FileText className="h-4 w-4" aria-hidden /> Go to most recent report
+          <FileText className="h-4 w-4" aria-hidden /> Go to most recent report that includes observation
         </Link>
       </div>
       <section className="grid grid-cols-2 gap-3">
         {fact("Status", <StatusBadge status={statusById.get(item.statusId ?? "")} />)}
-        {fact("Group", groups.find((g) => g.id === o.groupId)?.name ?? "None")}
+        {groups.length > 0 && fact("Group", groups.find((g) => g.id === o.groupId)?.name ?? "—")}
       </section>
       {o.originReportId === report.id ? (
         <section>

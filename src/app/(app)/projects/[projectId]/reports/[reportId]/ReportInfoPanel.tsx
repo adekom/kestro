@@ -5,10 +5,10 @@ import { useRef, useState } from "react";
 import { Users, X } from "lucide-react";
 import { updateReportInfoAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
-import { InlineDate, InlineSelect, InlineText, InlineTextarea, InlineTime } from "@/components/ui/InlineEdit";
+import { InlineDate, InlineText, InlineTextarea, InlineTime } from "@/components/ui/InlineEdit";
 import type { ReportView } from "@/server/services/reportView";
 import { contactName } from "@/lib/domain";
-import type { Attendee, Contact, SummaryOverride } from "@/lib/types";
+import type { Attendee, Contact } from "@/lib/types";
 
 /** Card with a header bar, as used down the field report page. */
 export function Card({ title, titleFor, actions, children }: { title: string; titleFor?: string; actions?: React.ReactNode; children: React.ReactNode }) {
@@ -33,14 +33,13 @@ export function Card({ title, titleFor, actions, children }: { title: string; ti
  * Contacts page.
  */
 export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts: Contact[] }) {
-  const { report, project, settings } = view;
+  const { report, project } = view;
   const [info, setInfo] = useState({
     visitDate: report.visitDate,
     visitTime: report.visitTime,
     authorName: report.authorName,
     ongoingWork: report.ongoingWork,
     attendees: report.attendees,
-    summaryOverride: report.summaryOverride,
   });
   const version = useRef(report.version);
   const { conflict } = useAutosave("report-info", info, async (v) => {
@@ -71,7 +70,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
       )}
 
       <Card title="Report details">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label" htmlFor="ri-date">Visit date</label>
             <InlineDate id="ri-date" value={info.visitDate} onChange={(v) => set("visitDate", v)} />
@@ -83,19 +82,6 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
           <div>
             <label className="label" htmlFor="ri-author">Author</label>
             <InlineText id="ri-author" value={info.authorName} onChange={(v) => set("authorName", v)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="ri-summary">Observation summary in PDF</label>
-            <InlineSelect
-              id="ri-summary"
-              value={info.summaryOverride}
-              onChange={(v) => set("summaryOverride", v as SummaryOverride)}
-              options={[
-                { value: "default", label: `Organization default (${settings.showSummaryDefault ? "show" : "hide"})` },
-                { value: "show", label: "Show" },
-                { value: "hide", label: "Hide" },
-              ]}
-            />
           </div>
         </div>
       </Card>

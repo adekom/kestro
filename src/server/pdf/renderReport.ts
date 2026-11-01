@@ -113,7 +113,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   }
 
   // ---- Optional summary ----
-  const showSummary = report.summaryOverride === "default" ? settings.showSummaryDefault : report.summaryOverride === "show";
+  const showSummary = project.summaryOverride === "default" ? settings.showSummaryDefault : project.summaryOverride === "show";
   if (showSummary && view.observations.length) {
     heading("Summary of observations", 30);
     for (const o of view.observations) {

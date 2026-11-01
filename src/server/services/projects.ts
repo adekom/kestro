@@ -5,7 +5,7 @@ import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { groupNameKey } from "@/lib/domain";
 import { getContactsByIds } from "./contacts";
-import type { Group, Project, ProjectContact } from "@/lib/types";
+import type { Group, Project, ProjectContact, SummaryOverride } from "@/lib/types";
 
 export async function listProjects(opts: { archived: boolean }): Promise<Project[]> {
   const snap = await projectsCol().where("archived", "==", opts.archived).get();
@@ -14,7 +14,7 @@ export async function listProjects(opts: { archived: boolean }): Promise<Project
 
 /** Fills fields added after a project was created. */
 function normalize(p: Project): Project {
-  return { ...p, contacts: p.contacts ?? [], contactIds: p.contactIds ?? [] };
+  return { ...p, contacts: p.contacts ?? [], contactIds: p.contactIds ?? [], summaryOverride: p.summaryOverride ?? "default" };
 }
 
 export async function getProject(pid: string): Promise<Project> {
@@ -50,6 +50,7 @@ export async function createProject(input: ProjectInput, contacts: ProjectContac
     groups: [],
     archived: false,
     reportCount: 0,
+    summaryOverride: "default",
     contacts: entries,
     contactIds: entries.map((e) => e.contactId),
     createdAt: now(),
@@ -61,6 +62,12 @@ export async function createProject(input: ProjectInput, contacts: ProjectContac
 
 export async function updateProject(pid: string, patch: Partial<ProjectInput>): Promise<void> {
   await projectDoc(pid).update({ ...clean(patch), updatedAt: now() });
+}
+
+/** PDF observation summary for every report in the project. */
+export async function setProjectSummary(pid: string, summaryOverride: SummaryOverride): Promise<void> {
+  if (!["default", "show", "hide"].includes(summaryOverride)) throw new UserError("Invalid summary option.");
+  await projectDoc(pid).update({ summaryOverride, updatedAt: now() });
 }
 
 export async function setProjectArchived(pid: string, archived: boolean): Promise<void> {

@@ -12,7 +12,7 @@ import {
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { isIsoDate, observationNumber, preselectForCarryForward, statusOn } from "@/lib/domain";
-import type { Attendee, Membership, Observation, Project, Report, StatusEvent, SummaryOverride } from "@/lib/types";
+import type { Attendee, Membership, Observation, Project, Report, StatusEvent } from "@/lib/types";
 import { deletedReportIds } from "./reportDeletion";
 import { renumberReport } from "./reportOrder";
 
@@ -198,7 +198,6 @@ export async function createReport(pid: string, input: CreateReportInput): Promi
       authorName: input.authorName.slice(0, 200),
       ongoingWork: "", // deliberately not copied: the user reviews the previous text explicitly
       attendees,
-      summaryOverride: "default",
       nextLocalSeq: 1,
       sourceReportId: input.sourceReportId,
       deletedAt: null,
@@ -222,7 +221,6 @@ export interface ReportInfoPatch {
   authorName?: string;
   ongoingWork?: string;
   attendees?: Attendee[];
-  summaryOverride?: SummaryOverride;
 }
 
 /** Autosave target for report information. Detects concurrent edits by version. */
@@ -233,9 +231,6 @@ export async function updateReportInfo(
   expectedVersion: number,
 ): Promise<number> {
   if (patch.visitDate !== undefined && !isIsoDate(patch.visitDate)) throw new UserError("Choose a valid visit date.");
-  if (patch.summaryOverride !== undefined && !["default", "show", "hide"].includes(patch.summaryOverride)) {
-    throw new UserError("Invalid summary option.");
-  }
   const clean: ReportInfoPatch = {
     ...patch,
     visitTime: patch.visitTime?.slice(0, 20),

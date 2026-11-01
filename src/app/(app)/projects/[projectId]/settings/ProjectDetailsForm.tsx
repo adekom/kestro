@@ -1,20 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { setProjectArchivedAction, updateProjectAction } from "@/app/actions";
+import { setProjectArchivedAction, setProjectSummaryAction, updateProjectAction } from "@/app/actions";
 import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/autosave";
-import type { Project } from "@/lib/types";
-import { InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
+import type { Project, SummaryOverride } from "@/lib/types";
+import { InlineSelect, InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
 
-export function ProjectDetailsForm({ project }: { project: Project }) {
+/** `orgShowsSummary`: the organization's default for the PDF observation summary. */
+export function ProjectDetailsForm({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
   return (
     <SaveStatusProvider>
-      <Form project={project} />
+      <Form project={project} orgShowsSummary={orgShowsSummary} />
     </SaveStatusProvider>
   );
 }
 
-function Form({ project }: { project: Project }) {
+function Form({ project, orgShowsSummary }: { project: Project; orgShowsSummary: boolean }) {
+  const [summary, setSummary] = useState<SummaryOverride>(project.summaryOverride);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: project.name,
     code: project.code,
@@ -45,6 +48,24 @@ function Form({ project }: { project: Project }) {
       {field("address", "Address")}
       {field("reportPrefix", "Report label prefix (e.g. “Field Report ”)")}
       {field("description", "Description", true)}
+      <div>
+        <label className="label" htmlFor="p-summary">Observation summary in PDF</label>
+        <InlineSelect
+          id="p-summary"
+          value={summary}
+          onCommit={async (v) => {
+            setSummary(v as SummaryOverride);
+            const res = await setProjectSummaryAction(project.id, v as SummaryOverride);
+            setSummaryError(res.ok ? null : res.error);
+          }}
+          options={[
+            { value: "default", label: `Organization default (${orgShowsSummary ? "show" : "hide"})` },
+            { value: "show", label: "Show" },
+            { value: "hide", label: "Hide" },
+          ]}
+        />
+        {summaryError && <p className="field-inset mt-1 text-xs text-danger" role="alert">{summaryError}</p>}
+      </div>
       <button
         type="button"
         className="btn"

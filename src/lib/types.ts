@@ -67,6 +67,8 @@ export interface Project {
   description: string;
   /** Prefix shown before the report number, e.g. "Field Report ". */
   reportPrefix: string;
+  /** Whether PDFs include the observation summary ("default" follows the organization). */
+  summaryOverride: SummaryOverride;
   groups: Group[];
   archived: boolean;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */
@@ -123,7 +125,8 @@ export interface Report {
   authorName: string;
   ongoingWork: string;
   attendees: Attendee[];
-  summaryOverride: SummaryOverride;
+  /** @deprecated The summary option is a project setting (Project.summaryOverride). */
+  summaryOverride?: SummaryOverride;
   /** Next origin-local sequence for observations created in this report. */
   nextLocalSeq: number;
   /** Report this one was created from, if any. */

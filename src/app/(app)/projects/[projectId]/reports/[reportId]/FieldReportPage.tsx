@@ -220,12 +220,10 @@ function ObservationCard({
     >
       <div className="flex items-start gap-3">
         <span className="shrink-0 font-semibold">{item.number}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold">{o.title}</span>
-          <span className="block text-xs text-text-muted">{formatLongDate(o.originalDate)}</span>
-        </span>
+        <span className="min-w-0 flex-1 font-semibold">{o.title}</span>
         <StatusBadge status={status} />
       </div>
+      <div className="text-xs text-text-muted">{formatLongDate(o.originalDate)}</div>
       {o.description && <p className="mt-2 text-sm whitespace-pre-wrap">{o.description}</p>}
       {item.updates.length > 0 && (
         <div className="mt-4">
