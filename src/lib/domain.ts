@@ -11,6 +11,10 @@ export function reportLabel(prefix: string, sequence: number): string {
  * the origin-local sequence (e.g. 18.3). Computed at read time from stable
  * IDs, so renumbering reports never rewrites observation documents.
  */
+/** A contact's role on a project: the project's own, else their default role. */
+export const roleOnProject = (pc: { projectRole: string } | undefined, contact: { defaultRole?: string } | undefined) =>
+  pc?.projectRole || contact?.defaultRole || "";
+
 export function observationNumber(
   obs: Pick<Observation, "originReportId" | "originLocalSeq">,
   reportSequenceById: ReadonlyMap<string, number>,

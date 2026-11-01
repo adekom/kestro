@@ -6,11 +6,11 @@ import { SaveIndicator, SaveStatusProvider, useAutosave } from "@/components/aut
 import { InlineText } from "@/components/ui/InlineEdit";
 import type { Contact } from "@/lib/types";
 
-type Fields = Pick<Contact, "firstName" | "lastName" | "email" | "phone" | "company" | "title">;
+type Fields = Pick<Contact, "firstName" | "lastName" | "email" | "phone" | "company" | "title" | "defaultRole">;
 
 /**
  * Click-to-edit contact details, saved automatically. A staff member's email
- * is their sign-in address, so it is managed under Kestro settings instead.
+ * is their sign-in address, so it can't be changed here.
  */
 export function ContactDetailsEditor({ contact, onSaved }: { contact: Contact; onSaved?: () => void }) {
   return (
@@ -28,6 +28,7 @@ function Editor({ contact, onSaved }: { contact: Contact; onSaved?: () => void }
     phone: contact.phone,
     company: contact.company,
     title: contact.title,
+    defaultRole: contact.defaultRole,
   });
   useAutosave(`contact-${contact.id}`, fields, async (v) => {
     const res = await updateContactAction(contact.id, v);
@@ -58,8 +59,9 @@ function Editor({ contact, onSaved }: { contact: Contact; onSaved?: () => void }
         {field("phone", "Phone", "tel")}
         {field("company", "Company")}
         {field("title", "Title")}
+        {field("defaultRole", "Default role")}
       </div>
-      {contact.userEmail && <p className="text-xs text-text-muted">This person is a Kestro user; their email is managed under Kestro settings, Staff.</p>}
+      {contact.userEmail && <p className="text-xs text-text-muted">This person is staff; their email is their sign-in address and can’t be changed here.</p>}
     </div>
   );
 }

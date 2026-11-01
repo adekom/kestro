@@ -92,7 +92,7 @@ export async function createContactAction(input: contacts.ContactInput, addToPro
     await requireUser();
     const contact = await contacts.createContact(input);
     if (addToProjectId) await projects.addProjectContacts(addToProjectId, [{ contactId: contact.id, projectRole }]);
-    revalidatePath("/contacts");
+    revalidatePath("/members", "layout");
     if (addToProjectId) revalidatePath(`/projects/${addToProjectId}`, "layout");
     return contact;
   });
@@ -102,6 +102,14 @@ export async function updateContactAction(id: string, input: contacts.ContactInp
   return toResult(async () => {
     await requireUser();
     await contacts.updateContact(id, input);
+    revalidatePath("/", "layout");
+  });
+}
+
+export async function deleteContactsAction(ids: string[]) {
+  return toResult(async () => {
+    await requireUser();
+    await contacts.deleteContacts(ids);
     revalidatePath("/", "layout");
   });
 }
@@ -334,8 +342,8 @@ export async function addUserAction(email: string, role: Role, names: users.Staf
     await requireUser("admin");
     if (role !== "admin" && role !== "editor") throw new Error("Invalid role");
     await users.addUser(email, role, names);
-    revalidatePath("/contacts");
-    revalidatePath("/settings/users");
+    revalidatePath("/members", "layout");
+    revalidatePath("/members", "layout");
   });
 }
 
@@ -343,7 +351,7 @@ export async function updateUserAction(email: string, patch: { role?: Role; enab
   return toResult(async () => {
     await requireUser("admin");
     await users.updateUser(email, patch);
-    revalidatePath("/settings/users");
+    revalidatePath("/members", "layout");
   });
 }
 

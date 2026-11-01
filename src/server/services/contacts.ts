@@ -1,13 +1,13 @@
 import "server-only";
 import type { Transaction } from "firebase-admin/firestore";
 import { db } from "../firebaseAdmin";
-import { contactsCol } from "../paths";
+import { contactsCol, projectsCol } from "../paths";
 import { newId, now } from "../time";
 import { UserError } from "../errors";
 import { contactName, EMAIL_PATTERN, emailKey } from "@/lib/domain";
-import type { Contact } from "@/lib/types";
+import type { Contact, Project } from "@/lib/types";
 
-export type ContactInput = Pick<Contact, "firstName" | "lastName" | "company" | "title" | "email" | "phone">;
+export type ContactInput = Pick<Contact, "firstName" | "lastName" | "company" | "title" | "email" | "phone"> & { defaultRole?: string };
 
 /** Thrown when another contact already uses the email; carries that contact so the UI can offer it instead. */
 export class DuplicateContactError extends UserError {
@@ -17,8 +17,9 @@ export class DuplicateContactError extends UserError {
   }
 }
 
-function clean(input: ContactInput): ContactInput {
+function clean(input: ContactInput): Required<ContactInput> {
   const out = {
+    defaultRole: String(input.defaultRole ?? "").trim().slice(0, 100),
     firstName: input.firstName.trim().slice(0, 100),
     lastName: input.lastName.trim().slice(0, 100),
     company: input.company.trim().slice(0, 200),
@@ -32,30 +33,33 @@ function clean(input: ContactInput): ContactInput {
   return out;
 }
 
+/** Fills fields added after a contact was created. */
+const normalize = (c: Contact): Contact => ({ ...c, defaultRole: c.defaultRole ?? "" });
+
 const byName = (a: Contact, b: Contact) =>
   a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName) || a.email.localeCompare(b.email);
 
 export async function listContacts(): Promise<Contact[]> {
   const snap = await contactsCol().get();
-  return snap.docs.map((d) => d.data() as Contact).sort(byName);
+  return snap.docs.map((d) => normalize(d.data() as Contact)).sort(byName);
 }
 
 export async function getContact(id: string): Promise<Contact> {
   const snap = await contactsCol().doc(id).get();
   if (!snap.exists) throw new UserError("Contact not found.");
-  return snap.data() as Contact;
+  return normalize(snap.data() as Contact);
 }
 
 export async function getContactsByIds(ids: string[]): Promise<Map<string, Contact>> {
   if (!ids.length) return new Map();
   const snaps = await db().getAll(...ids.map((id) => contactsCol().doc(id)));
-  return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, s.data() as Contact]));
+  return new Map(snaps.filter((s) => s.exists).map((s) => [s.id, normalize(s.data() as Contact)]));
 }
 
 export async function findContactByEmail(email: string, tx?: Transaction): Promise<Contact | null> {
   const query = contactsCol().where("emailKey", "==", emailKey(email)).limit(1);
   const snap = tx ? await tx.get(query) : await query.get();
-  return snap.empty ? null : (snap.docs[0].data() as Contact);
+  return snap.empty ? null : normalize(snap.docs[0].data() as Contact);
 }
 
 /**
@@ -108,8 +112,35 @@ export async function ensureStaffContactInTx(
   const firstName = names.firstName.trim() || email.split("@")[0];
   const contact = await createContactInTx(
     tx,
-    { firstName, lastName: names.lastName, company: "", title: "", email, phone: "" },
+    { firstName, lastName: names.lastName, company: "", title: "", email, phone: "", defaultRole: "" },
     emailKey(email),
   );
   return contact.id;
+}
+
+/**
+ * Deletes contacts from Kestro and removes them from every project. Staff
+ * can't be deleted here (they're managed as staff). Attendance already
+ * recorded in reports keeps the name and company as written.
+ */
+export async function deleteContacts(ids: string[]): Promise<void> {
+  const unique = [...new Set(ids)].slice(0, 400);
+  if (!unique.length) return;
+  const found = await getContactsByIds(unique);
+  const staff = [...found.values()].filter((x) => x.userEmail);
+  if (staff.length) throw new UserError(`${staff.map((x) => contactName(x) || x.email).join(", ")} ${staff.length > 1 ? "are" : "is"} staff and can't be deleted here.`);
+  const gone = new Set(found.keys());
+  const projects = await projectsCol().get();
+  const batch = db().batch();
+  for (const d of projects.docs) {
+    const p = d.data() as Project;
+    if (!(p.contactIds ?? []).some((id) => gone.has(id))) continue;
+    batch.update(d.ref, {
+      contacts: (p.contacts ?? []).filter((x) => !gone.has(x.contactId)),
+      contactIds: (p.contactIds ?? []).filter((id) => !gone.has(id)),
+      updatedAt: now(),
+    });
+  }
+  for (const id of gone) batch.delete(contactsCol().doc(id));
+  await batch.commit();
 }

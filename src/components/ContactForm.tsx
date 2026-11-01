@@ -4,9 +4,9 @@ import { useState } from "react";
 import { contactName } from "@/lib/domain";
 import type { Contact } from "@/lib/types";
 
-export type ContactFields = Pick<Contact, "firstName" | "lastName" | "email" | "company" | "title" | "phone">;
+export type ContactFields = Pick<Contact, "firstName" | "lastName" | "email" | "company" | "title" | "phone" | "defaultRole">;
 
-export const EMPTY_CONTACT: ContactFields = { firstName: "", lastName: "", email: "", company: "", title: "", phone: "" };
+export const EMPTY_CONTACT: ContactFields = { firstName: "", lastName: "", email: "", company: "", title: "", phone: "", defaultRole: "" };
 
 type SubmitResult = { ok: true } | { ok: false; error: string; duplicateContact?: Contact };
 
@@ -81,8 +81,9 @@ export function ContactForm({
         {field("phone", "Phone", { type: "tel", autoComplete: "off" })}
         {field("company", "Company")}
         {field("title", "Title")}
+        {field("defaultRole", "Default role on projects (e.g. Contractor)")}
       </div>
-      {emailLocked && <p className="text-xs text-text-muted">This person is a Kestro user; their email is managed under Kestro settings, Staff.</p>}
+      {emailLocked && <p className="text-xs text-text-muted">This person is staff; their email is their sign-in address and can’t be changed here.</p>}
       {children}
       {error && (
         <div role="alert" className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger">

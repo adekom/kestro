@@ -35,7 +35,8 @@ const COLUMNS: Column<ContactRow>[] = [
   { id: "email", header: "Email", weight: 2.5, cell: (r) => r.contact.email, sortValue: (r) => r.contact.email },
   { id: "phone", header: "Phone", weight: 1.5, cell: (r) => r.contact.phone, sortValue: (r) => r.contact.phone },
   { id: "company", header: "Company", weight: 2, cell: (r) => r.contact.company, sortValue: (r) => r.contact.company },
-  { id: "role", header: "Role", weight: 2, cell: (r) => r.projectRole, sortValue: (r) => r.projectRole },
+  { id: "title", header: "Title", weight: 1.8, cell: (r) => r.contact.title, sortValue: (r) => r.contact.title },
+  { id: "role", header: "Role", weight: 2, cell: (r) => r.role, sortValue: (r) => r.role },
 ];
 
 export function ContactsTable({
@@ -63,7 +64,7 @@ export function ContactsTable({
         rows={rows}
         columns={COLUMNS}
         rowId={(r) => r.contact.id}
-        filterText={(r) => `${contactName(r.contact)} ${r.contact.email} ${r.contact.phone} ${r.contact.company} ${r.projectRole}`}
+        filterText={(r) => `${contactName(r.contact)} ${r.contact.email} ${r.contact.phone} ${r.contact.company} ${r.contact.title} ${r.role}`}
         filterPlaceholder="Filter contacts"
         onCreate={() => setAdding(true)}
         createLabel="Add contacts"
@@ -128,7 +129,7 @@ export function ContactsTable({
             {removing.map((r) => <li key={r.contact.id}>{contactName(r.contact)}</li>)}
           </ul>
         )}
-        <p className="mt-2 text-text-muted">They stay in the firm contact list and can be added back at any time.</p>
+        <p className="mt-2 text-text-muted">They stay in Members and can be added back at any time.</p>
       </ConfirmDialog>
     </>
   );
@@ -197,7 +198,7 @@ function ContactEditor({
           <label className="label" htmlFor="project-role">Role</label>
           <InlineText
             id="project-role"
-            placeholder="e.g. Contractor"
+            placeholder={row.contact.defaultRole ? `${row.contact.defaultRole} (default)` : "e.g. Contractor"}
             value={role}
             onCommit={async (v) => {
               setRole(v);
@@ -207,6 +208,11 @@ function ContactEditor({
             }}
           />
         </div>
+        <p className="field-inset text-xs text-text-muted">
+          {row.contact.defaultRole
+            ? <>Default role: {row.contact.defaultRole}. A role set here applies to this project only; clear it to use the default.</>
+            : <>Applies to this project only. A default role can be set in the contact details below.</>}
+        </p>
         {roleError && <p className="text-xs text-danger" role="alert">{roleError}</p>}
       </section>
 

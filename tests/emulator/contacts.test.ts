@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetEmulators } from "../support/fixtures";
-import { createContact, DuplicateContactError, listContacts, updateContact } from "@/server/services/contacts";
+import { createContact, deleteContacts, DuplicateContactError, getContact, listContacts, updateContact } from "@/server/services/contacts";
+import { projectContactRows } from "@/server/services/tables";
 import {
   addProjectContacts,
   createProject,
@@ -8,6 +9,7 @@ import {
   listProjectsForContact,
   removeProjectContacts,
   listProjects,
+  setProjectContactRole,
   setProjectsArchived,
 } from "@/server/services/projects";
 import { addUser, completeBootstrap, recordSignIn } from "@/server/services/users";
@@ -114,5 +116,32 @@ describe("archiving projects", () => {
     expect((await listProjects({ archived: false })).map((p) => p.id)).toEqual([two]);
     await setProjectsArchived([one], false);
     expect((await listProjects({ archived: false })).map((p) => p.name)).toEqual(["One", "Two"]);
+  });
+});
+
+describe("roles and deleting contacts", () => {
+  it("uses the contact's default role unless the project sets its own", async () => {
+    const c = await createContact({ ...person("gc@example.com"), defaultRole: "Contractor" });
+    const pid = await createProject(project());
+    await addProjectContacts(pid, [{ contactId: c.id, projectRole: "" }]);
+    let [row] = await projectContactRows(pid);
+    expect(row).toMatchObject({ projectRole: "", role: "Contractor" });
+    await setProjectContactRole(pid, c.id, "Owner's rep");
+    [row] = await projectContactRows(pid);
+    expect(row.role).toBe("Owner's rep");
+    expect((await getContact(c.id)).defaultRole).toBe("Contractor"); // unchanged
+  });
+
+  it("deletes contacts from Kestro and every project, but never staff", async () => {
+    const a = await createContact(person("a@example.com"));
+    const b = await createContact(person("b@example.com"));
+    const p1 = await createProject(project("One"), [{ contactId: a.id, projectRole: "" }, { contactId: b.id, projectRole: "" }]);
+    await deleteContacts([a.id]);
+    await expect(getContact(a.id)).rejects.toThrow(/not found/i);
+    expect((await getProject(p1)).contactIds).toEqual([b.id]);
+
+    await addUser("staff@example.com", "editor", { firstName: "Sam", lastName: "Staff" });
+    const staff = (await listContacts()).find((c) => c.userEmail)!;
+    await expect(deleteContacts([staff.id])).rejects.toThrow(/staff/);
   });
 });

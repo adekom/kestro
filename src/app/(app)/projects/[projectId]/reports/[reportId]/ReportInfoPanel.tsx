@@ -7,7 +7,7 @@ import { updateReportInfoAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
 import { InlineDate, InlineText, InlineTextarea, InlineTime } from "@/components/ui/InlineEdit";
 import type { ReportView } from "@/server/services/reportView";
-import { contactName } from "@/lib/domain";
+import { contactName, roleOnProject } from "@/lib/domain";
 import type { Attendee, Contact } from "@/lib/types";
 
 /** Card with a header bar, as used down the field report page. */
@@ -53,7 +53,7 @@ export function ReportInfoPanel({ view, contacts }: { view: ReportView; contacts
     set("attendees", info.attendees.map((a) => (a.id === id ? { ...a, ...patch } : a)));
 
   const contactById = new Map(contacts.map((c) => [c.id, c]));
-  const roleById = new Map(project.contacts.map((c) => [c.contactId, c.projectRole]));
+  const roleById = new Map(project.contacts.map((pc) => [pc.contactId, roleOnProject(pc, contactById.get(pc.contactId))]));
   const unlisted = contacts.filter((c) => !info.attendees.some((a) => a.contactId === c.id));
   // Show current contact details; the stored copy covers attendees no longer on the project.
   const shown = (a: Attendee) => {

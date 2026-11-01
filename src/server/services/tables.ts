@@ -4,7 +4,7 @@ import { listProjectObservations } from "./observations";
 import { getProject } from "./projects";
 import { getMemberships, getStatusEvents, listReports } from "./reports";
 import { deletedReportIds } from "./reportDeletion";
-import { observationNumber, reportLabel, statusOn } from "@/lib/domain";
+import { observationNumber, reportLabel, roleOnProject, statusOn } from "@/lib/domain";
 import type { Contact, Photo, PhotoAttachment } from "@/lib/types";
 import { listLibrary } from "./photos";
 import { attachmentsCol } from "../paths";
@@ -44,7 +44,10 @@ export async function observationRows(pid: string): Promise<ObservationRow[]> {
 
 export interface ContactRow {
   contact: Contact;
+  /** The project's own role for them; empty uses their default role. */
   projectRole: string;
+  /** Role in effect on this project. */
+  role: string;
 }
 
 export async function projectContactRows(pid: string): Promise<ContactRow[]> {
@@ -52,7 +55,7 @@ export async function projectContactRows(pid: string): Promise<ContactRow[]> {
   const contacts = await getContactsByIds(project.contactIds);
   return project.contacts.flatMap((pc) => {
     const contact = contacts.get(pc.contactId);
-    return contact ? [{ contact, projectRole: pc.projectRole }] : [];
+    return contact ? [{ contact, projectRole: pc.projectRole, role: roleOnProject(pc, contact) }] : [];
   });
 }
 

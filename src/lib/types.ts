@@ -109,6 +109,8 @@ export interface Contact {
   /** Lower-cased email used for the uniqueness check. */
   emailKey: string;
   phone: string;
+  /** Role on projects unless a project sets its own (ProjectContact.projectRole). */
+  defaultRole: string;
   /** Set when this contact is a Kestro user. */
   userEmail: string | null;
   createdAt: IsoTimestamp;
@@ -117,7 +119,7 @@ export interface Contact {
 
 export interface ProjectContact {
   contactId: string;
-  /** Role on this project, e.g. "Contractor" or "Owner's representative". */
+  /** Role on this project, e.g. "Contractor"; empty uses the contact's default role (see roleOnProject). */
   projectRole: string;
 }
 

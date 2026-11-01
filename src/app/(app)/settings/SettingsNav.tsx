@@ -1,12 +1,14 @@
-import { NavLink } from "@/components/NavLink";
+import { TabNav } from "@/components/TabNav";
 
 export function SettingsNav() {
   return (
-    <nav className="flex gap-1 text-sm" aria-label="Settings">
-      <NavLink href="/settings" exact>Company Details</NavLink>
-      <NavLink href="/settings/reports">Report Settings</NavLink>
-      <NavLink href="/settings/statuses">Observation Statuses</NavLink>
-      <NavLink href="/settings/users">Staff</NavLink>
-    </nav>
+    <TabNav
+      label="Settings"
+      tabs={[
+        { href: "/settings", label: "Company Details", exact: true },
+        { href: "/settings/reports", label: "Report Settings" },
+        { href: "/settings/statuses", label: "Observation Statuses" },
+      ]}
+    />
   );
 }

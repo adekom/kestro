@@ -43,8 +43,8 @@ export function UserMenu({ firstName, email, isAdmin }: { firstName: string; ema
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-border bg-surface py-1 shadow-lg">
           <div className="border-b border-border px-3 py-2 text-xs text-text-muted">{email}</div>
-          <Link role="menuitem" href="/contacts" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-surface-muted">
-            Firm contacts
+          <Link role="menuitem" href="/members" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-surface-muted">
+            Members
           </Link>
           {isAdmin && (
             <Link role="menuitem" href="/settings" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-surface-muted">

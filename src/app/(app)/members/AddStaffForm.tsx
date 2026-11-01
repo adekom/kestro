@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addUserAction } from "@/app/actions";
 import type { Role } from "@/lib/types";
 
-export function AddStaffForm() {
-  const router = useRouter();
+/** Adds someone who can sign in. They join the contact list too (or are linked to their existing contact). */
+export function AddStaffForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "" });
   const [role, setRole] = useState<Role>("editor");
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +30,13 @@ export function AddStaffForm() {
 
   return (
     <form
-      className="card space-y-4 p-4"
+      className="space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
         const res = await addUserAction(form.email, role, { firstName: form.firstName, lastName: form.lastName });
         setBusy(false);
-        if (res.ok) router.push("/settings/users");
+        if (res.ok) onDone();
         else setError(res.error);
       }}
     >
@@ -46,7 +45,7 @@ export function AddStaffForm() {
         {field("lastName", "Last name")}
         <div className="col-span-2">{field("email", "Work email", "email", true)}</div>
         <div>
-          <label className="label" htmlFor="staff-role">Role</label>
+          <label className="label" htmlFor="staff-role">Permissions</label>
           <select id="staff-role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             <option value="editor">Editor</option>
             <option value="admin">Admin</option>
@@ -56,7 +55,7 @@ export function AddStaffForm() {
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
       <div className="flex gap-2">
         <button className="btn btn-primary" disabled={busy}>Add staff member</button>
-        <button type="button" className="btn" onClick={() => router.push("/settings/users")}>Cancel</button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );

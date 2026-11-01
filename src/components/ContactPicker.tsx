@@ -66,7 +66,7 @@ export function ContactPicker({
       </div>
       <p className="text-xs text-text-muted" aria-live="polite">{selected.length} selected</p>
 
-      <ul className="h-80 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Firm contacts">
+      <ul className="h-80 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Members">
         {shown.length === 0 && (
           <li className="px-3 py-2 text-sm text-text-muted">No matching contacts that aren’t already on the project. Use “Create new contact” to add one.</li>
         )}
@@ -95,7 +95,7 @@ export function ContactPicker({
                 <input
                   className={`input ${checked ? "" : "invisible"}`}
                   aria-label={`Role of ${contactName(c)} on project`}
-                  placeholder="Role on project (optional)"
+                  placeholder={c.defaultRole ? `${c.defaultRole} (default)` : "Role on project (optional)"}
                   tabIndex={checked ? 0 : -1}
                   value={roleById.get(c.id) ?? ""}
                   onChange={(e) =>
