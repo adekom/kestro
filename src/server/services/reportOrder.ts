@@ -1,6 +1,6 @@
 import "server-only";
 import type { Transaction } from "firebase-admin/firestore";
-import { db } from "../firebaseAdmin";
+import { runTransaction } from "../transactions";
 import { membershipsCol, observationsCol, projectDoc, reportDoc, reportsCol } from "../paths";
 import { now } from "../time";
 import { UserError } from "../errors";
@@ -54,12 +54,11 @@ function writeNumbers(tx: Transaction, pid: string, rid: string, state: NonNulla
  * removing or deleting observations.
  */
 export async function renumberReport(pid: string, rid: string): Promise<void> {
-  await db().runTransaction(
+  await runTransaction(
     async (tx) => {
       const state = await readOrder(tx, pid, rid);
       if (state) writeNumbers(tx, pid, rid, state);
     },
-    { maxAttempts: 15 },
   );
 }
 
@@ -68,7 +67,7 @@ export async function renumberReport(pid: string, rid: string): Promise<void> {
  * It can't pass observations carried from earlier reports, which always come first.
  */
 export async function moveObservation(pid: string, rid: string, oid: string, direction: -1 | 1): Promise<void> {
-  await db().runTransaction(
+  await runTransaction(
     async (tx) => {
       const state = await readOrder(tx, pid, rid);
       if (!state) throw new UserError("Report not found.");
@@ -87,6 +86,5 @@ export async function moveObservation(pid: string, rid: string, oid: string, dir
       other.order = nb;
       writeNumbers(tx, pid, rid, state);
     },
-    { maxAttempts: 15 },
   );
 }

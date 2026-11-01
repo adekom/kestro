@@ -1,6 +1,7 @@
 import "server-only";
 import type { Transaction } from "firebase-admin/firestore";
 import { db } from "../firebaseAdmin";
+import { runTransaction } from "../transactions";
 import { membershipsCol, observationsCol, projectDoc, reportDoc, reportsCol, statusEventsCol } from "../paths";
 import { newId, now } from "../time";
 import { ConflictError, UserError } from "../errors";
@@ -121,7 +122,7 @@ export async function previewReportDeletion(pid: string, rids: string[]): Promis
  */
 export async function deleteReports(pid: string, rids: string[], deletedBy: string): Promise<void> {
   let receivers: string[] = [];
-  await db().runTransaction(
+  await runTransaction(
     async (tx) => {
       const { live, targets, originating, plan } = await loadState(pid, rids, tx);
       receivers = [...plan.nextLocalSeq.keys()];
@@ -172,7 +173,6 @@ export async function deleteReports(pid: string, rids: string[], deletedBy: stri
       }
       tx.update(projectDoc(pid), { reportCount: plan.remainingCount, updatedAt: at });
     },
-    { maxAttempts: 15 },
   );
   // Moved observations take their place in the receiving reports' numbering.
   for (const rid of receivers) await renumberReport(pid, rid);

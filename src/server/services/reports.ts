@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "../firebaseAdmin";
+import { runTransaction } from "../transactions";
 import {
   attachmentsCol,
   membershipsCol,
@@ -138,24 +139,6 @@ export interface CreateReportInput {
 }
 
 /**
- * Re-runs a transaction the server abandoned before it committed. Under heavy
- * contention the emulator closes a competing transaction with
- * INVALID_ARGUMENT ("Transaction is invalid or closed"), which the client
- * library does not retry itself. Nothing was written, so retrying is safe.
- */
-async function withTransactionRetry<T>(run: () => Promise<T>, attempts = 5): Promise<T> {
-  for (let i = 1; ; i++) {
-    try {
-      return await run();
-    } catch (e) {
-      const closed = (e as { code?: number }).code === 3 && /Transaction is invalid or closed/.test(String((e as Error).message));
-      if (!closed || i >= attempts) throw e;
-      await new Promise((r) => setTimeout(r, 50 * i + Math.random() * 100));
-    }
-  }
-}
-
-/**
  * Creates a report with the next gap-free sequence number. The sequence is
  * allocated inside a transaction that reads the project's live report set,
  * so concurrent creates (or a concurrent renumber) retry rather than collide.
@@ -167,7 +150,7 @@ export async function createReport(pid: string, input: CreateReportInput): Promi
     throw new UserError(`A report can carry forward at most ${MAX_MEMBERSHIPS_PER_CREATE} observations at once.`);
   }
   const rid = newId();
-  await withTransactionRetry(() => db().runTransaction(async (tx) => {
+  await runTransaction(async (tx) => {
     const project = (await tx.get(projectDoc(pid))).data() as Project | undefined;
     if (!project) throw new UserError("Project not found.");
     const live = await tx.get(reportsCol(pid).where("deletedAt", "==", null));
@@ -211,7 +194,7 @@ export async function createReport(pid: string, input: CreateReportInput): Promi
       tx.create(membershipsCol(pid, rid).doc(observationId), m);
     });
     tx.update(projectDoc(pid), { reportCount: project.reportCount + 1, updatedAt: now() });
-  }, { maxAttempts: CREATE_ATTEMPTS }));
+  }, CREATE_ATTEMPTS);
   return rid;
 }
 
