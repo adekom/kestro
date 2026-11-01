@@ -44,7 +44,7 @@ export function SettingLock({ setting, label, locked }: { setting: PolicyKey; la
         }}
       >
         <p>
-          Every project will use the company setting for <span className="font-medium">{label}</span>. Projects that chose their own will
+          Every project will use the company setting for <span className="font-medium">{label.replace(/.$/, "")}</span>. Projects that chose their own will
           switch to the company setting, and project settings can’t change it while it’s locked.
         </p>
       </ConfirmDialog>

@@ -17,7 +17,7 @@ export const NO_LOCKS: PolicyLocks = { summary: false, weather: false, autoPhoto
 export const POLICY_LABELS: Record<BoolPolicy, string> = {
   summary: "Include summary of all observations at bottom of PDF Export",
   weather: "Include Weather in Report",
-  autoPhotoUpdate: "Automatically add update when photos are added to observation",
+  autoPhotoUpdate: "When a photo is added to an observation, automatically add an update if there isn't one already.",
 };
 
 /** The company's own value for a setting. */
