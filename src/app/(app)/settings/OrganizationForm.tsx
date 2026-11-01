@@ -7,8 +7,8 @@ import type { FieldVisibility, OrgSettings } from "@/lib/types";
 import { InlineText, InlineTextarea } from "@/components/ui/InlineEdit";
 
 const VISIBILITY_LABELS: Record<keyof FieldVisibility, string> = {
-  address: "Organization address",
-  contact: "Organization contact line",
+  address: "Company address",
+  contact: "Company contact line",
   attendance: "Attendance",
   ongoingWork: "Ongoing work",
   author: "Report author",
@@ -42,11 +42,11 @@ function Form({ settings }: { settings: OrgSettings }) {
   return (
     <section className="card space-y-3 p-4">
       <div className="flex items-center justify-between">
-        <h2 className="field-inset text-base font-semibold">Organization and report branding</h2>
+        <h2 className="field-inset text-base font-semibold">Company details and report branding</h2>
         <SaveIndicator />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {text("name", "Organization name")}
+        {text("name", "Company name")}
         {text("contactLine", "Contact line (phone, email, website)")}
         {text("address", "Address")}
         {text("footerText", "Page footer text")}
