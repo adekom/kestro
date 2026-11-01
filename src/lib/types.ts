@@ -119,6 +119,8 @@ export interface Project {
   statusOverride?: { statuses: StatusDef[]; resolvedStatusId: string; defaultStatusId?: string } | null;
   groups: Group[];
   archived: boolean;
+  /** Set on projects created by an import (see server/services/importer). */
+  importBatchId?: string;
   /** Number of live (not soft-deleted) reports; equals the highest sequence. */
   reportCount: number;
   /** Firm contacts involved in this project, with their role on it. */

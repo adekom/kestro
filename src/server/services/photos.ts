@@ -33,6 +33,7 @@ export async function uploadPhoto(
   oid: string,
   file: { name: string; bytes: Buffer },
   uploadedBy: string,
+  options: AttachOptions = {},
 ): Promise<string> {
   if (file.bytes.length > MAX_UPLOAD_BYTES) throw new UserError(`${file.name} is larger than 40 MB.`);
   if (/\.(heic|heif)$/i.test(file.name)) {
@@ -84,19 +85,27 @@ export async function uploadPhoto(
   // The photo record is written only after all files exist, so a failed
   // upload never leaves a library entry pointing at missing objects.
   await photosCol(pid).doc(photoId).create(photo);
-  await attachPhoto(pid, photoId, oid, rid);
+  await attachPhoto(pid, photoId, oid, rid, options);
   return photoId;
 }
 
+export interface AttachOptions {
+  caption?: string;
+  /** Position among the observation's photos (default: after the others). */
+  order?: number;
+  /** Imports bring their own history: no automatic "Photo added." update. */
+  quiet?: boolean;
+}
+
 /** Attaches a library photo to an observation from the given report onwards. */
-export async function attachPhoto(pid: string, photoId: string, oid: string, rid: string): Promise<string> {
+export async function attachPhoto(pid: string, photoId: string, oid: string, rid: string, options: AttachOptions = {}): Promise<string> {
   const report = (await reportDoc(pid, rid).get()).data() as Report | undefined;
   if (!report || report.deletedAt) throw new UserError("Report not found.");
   if (!(await photosCol(pid).doc(photoId).get()).exists) throw new UserError("Photo not found.");
   const id = newId();
   await db().runTransaction(async (tx) => {
     const existing = await tx.get(attachmentsCol(pid).where("observationId", "==", oid));
-    const order = existing.docs.reduce((max, d) => Math.max(max, (d.data() as PhotoAttachment).order), -1) + 1;
+    const order = options.order ?? existing.docs.reduce((max, d) => Math.max(max, (d.data() as PhotoAttachment).order), -1) + 1;
     const attachment: PhotoAttachment = {
       id,
       photoId,
@@ -104,7 +113,7 @@ export async function attachPhoto(pid: string, photoId: string, oid: string, rid
       reportId: rid,
       date: report.visitDate,
       order,
-      caption: "",
+      caption: (options.caption ?? "").slice(0, 500),
       shareToken: null,
       detachedAt: null,
       createdAt: now(),
@@ -112,7 +121,7 @@ export async function attachPhoto(pid: string, photoId: string, oid: string, rid
     };
     tx.create(attachmentsCol(pid).doc(id), attachment);
   });
-  await notePhotoAdded(pid, oid, rid);
+  if (!options.quiet) await notePhotoAdded(pid, oid, rid);
   return id;
 }
 
