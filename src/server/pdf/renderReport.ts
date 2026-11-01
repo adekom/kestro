@@ -264,7 +264,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       doc.moveDown(0.5);
       ensureSpace(26);
       const y = doc.y;
-      dots.push({ page: currentPage(), y: y + 4.5, color: statuses.get(statusOn(o.statusEvents, u.date) ?? "")?.color });
+      dots.push({ page: currentPage(), y: y + 9 * (0.718 - 0.31), // centred on the 9 pt date line
+      color: statuses.get(statusOn(o.statusEvents, u.date) ?? "")?.color });
       doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED).text(updateDate(u.date), UPDATE_X, y, { width: UPDATE_W });
       doc.font("Helvetica").fontSize(10).fillColor(INK).text(u.text.trim(), UPDATE_X, doc.y, { width: UPDATE_W });
     }
@@ -330,7 +331,11 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
 
 function statusChip(doc: PDFKit.PDFDocument, status: StatusDef | undefined, x: number, y: number, width: number) {
   const label = status?.label ?? "No status";
-  doc.circle(x + 3.5, y + 5, 3.5).fillColor(status?.color ?? "#999999").fill();
-  doc.font("Helvetica").fontSize(9).fillColor(INK).text(label, x + 11, y, { width: width - 11 });
+  const size = 9;
+  // Centre the dot on the letters: Helvetica's baseline sits 0.718 em below the
+  // top of the line, and mixed-case text centres about 0.31 em above it.
+  const centre = y + size * (0.718 - 0.31);
+  doc.circle(x + 3.5, centre, 3.5).fillColor(status?.color ?? "#999999").fill();
+  doc.font("Helvetica").fontSize(size).fillColor(INK).text(label, x + 11, y, { width: width - 11 });
 }
 
