@@ -23,7 +23,7 @@ export type PolicyDef = BoolDef | ChoiceDef;
 export type PolicySection = "pdf" | "observations";
 
 export const POLICY_SECTIONS: Record<PolicySection, string> = {
-  pdf: "Field reports and PDF",
+  pdf: "PDF export",
   observations: "Observations and updates",
 };
 
@@ -43,9 +43,9 @@ export const POLICIES = {
     label: "Photo size in PDF",
     default: "m",
     options: [
-      { value: "s", label: "Small" },
-      { value: "m", label: "Medium" },
-      { value: "l", label: "Large" },
+      { value: "s", label: "Small (6 across)" },
+      { value: "m", label: "Medium (4 across)" },
+      { value: "l", label: "Large (2 across)" },
     ],
   } as ChoiceDef,
   photoCaption: {

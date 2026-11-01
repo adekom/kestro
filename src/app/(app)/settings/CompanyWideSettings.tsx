@@ -18,7 +18,7 @@ const SECTION_LABELS: Record<PdfSection, string> = {
 const SAMPLE_DATE = "2026-07-14";
 
 /** Settings that apply to the whole company; projects can't change them. */
-export function CompanyWideSettings({ settings }: { settings: OrgSettings }) {
+export function CompanyWideSettings({ settings, part }: { settings: OrgSettings; part: "general" | "pdf" }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const save = async (patch: Parameters<typeof updateSettingsAction>[0]) => {
@@ -47,6 +47,46 @@ export function CompanyWideSettings({ settings }: { settings: OrgSettings }) {
   };
   const palette = settings.markupPalette;
 
+  if (part === "pdf") {
+    return (
+      <>
+        <section className="card space-y-3 p-4" aria-labelledby="pdf-layout-heading">
+          <div>
+            <h2 id="pdf-layout-heading" className="field-inset text-base font-semibold">Page</h2>
+            <p className="field-inset text-xs text-text-muted">These apply to every project.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+            {select("co-page", "PDF page size", settings.pageSize, [
+              { value: "LETTER", label: "US Letter" },
+              { value: "A4", label: "A4" },
+            ], (v) => save({ pageSize: v as OrgSettings["pageSize"] }))}
+          </div>
+        </section>
+        <section className="card space-y-3 p-4" aria-labelledby="pdf-order-heading">
+          <div>
+            <h2 id="pdf-order-heading" className="field-inset text-base font-semibold">PDF section order</h2>
+            <p className="field-inset text-xs text-text-muted">Between the report details at the top and the disclaimer at the end.</p>
+          </div>
+          <ol className="divide-y divide-border">
+            {order.map((s, i) => (
+              <li key={s} className="field-inset flex items-center gap-2 py-1.5 text-sm">
+                <span className="w-5 text-text-muted">{i + 1}.</span>
+                <span className="flex-1">{SECTION_LABELS[s]}</span>
+                <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${SECTION_LABELS[s]} up`}>
+                  <ChevronUp className="h-4 w-4" aria-hidden />
+                </button>
+                <button type="button" className="btn" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${SECTION_LABELS[s]} down`}>
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+        {error && <p className="field-inset text-xs text-danger" role="alert">{error}</p>}
+      </>
+    );
+  }
+
   return (
     <>
       <section className="card space-y-3 p-4" aria-labelledby="company-wide-heading">
@@ -65,34 +105,9 @@ export function CompanyWideSettings({ settings }: { settings: OrgSettings }) {
             { value: "intl", label: formatLongDate(SAMPLE_DATE, "intl") },
             { value: "iso", label: formatLongDate(SAMPLE_DATE, "iso") },
           ], (v) => save({ dateFormat: v as OrgSettings["dateFormat"] }))}
-          {select("co-page", "PDF page size", settings.pageSize, [
-            { value: "LETTER", label: "US Letter" },
-            { value: "A4", label: "A4" },
-          ], (v) => save({ pageSize: v as OrgSettings["pageSize"] }))}
           {text("co-prefix", "Report label for new projects", settings.defaultReportPrefix, (v) => save({ defaultReportPrefix: v }), "e.g. Field Report ")}
           {text("co-ungrouped", "Heading for observations without a group", settings.ungroupedLabel, (v) => save({ ungroupedLabel: v }))}
         </div>
-      </section>
-
-      <section className="card space-y-3 p-4" aria-labelledby="pdf-order-heading">
-        <div>
-          <h2 id="pdf-order-heading" className="field-inset text-base font-semibold">PDF section order</h2>
-          <p className="field-inset text-xs text-text-muted">Between the report details at the top and the disclaimer at the end.</p>
-        </div>
-        <ol className="divide-y divide-border">
-          {order.map((s, i) => (
-            <li key={s} className="field-inset flex items-center gap-2 py-1.5 text-sm">
-              <span className="w-5 text-text-muted">{i + 1}.</span>
-              <span className="flex-1">{SECTION_LABELS[s]}</span>
-              <button type="button" className="btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${SECTION_LABELS[s]} up`}>
-                <ChevronUp className="h-4 w-4" aria-hidden />
-              </button>
-              <button type="button" className="btn" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${SECTION_LABELS[s]} down`}>
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ol>
       </section>
 
       <section className="card space-y-3 p-4" aria-labelledby="photos-heading">

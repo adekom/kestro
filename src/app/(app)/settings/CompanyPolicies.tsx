@@ -23,10 +23,9 @@ export const toSelect = (key: PolicyName, v: boolean | string) => (POLICIES[key]
 export const fromSelect = (key: PolicyName, v: string) => (POLICIES[key].kind === "bool" ? v === "yes" : v);
 
 /** Company values for settings projects inherit, each lockable, grouped by section. */
-export function CompanyPolicies({ settings }: { settings: OrgSettings }) {
+export function CompanyPolicies({ settings, sections }: { settings: OrgSettings; sections: PolicySection[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const sections = Object.keys(POLICY_SECTIONS) as PolicySection[];
   return (
     <>
       {sections.map((section) => (

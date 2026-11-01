@@ -7,6 +7,7 @@ export function SettingsNav() {
       tabs={[
         { href: "/settings", label: "Company Details", exact: true },
         { href: "/settings/reports", label: "Report Settings" },
+        { href: "/settings/pdf", label: "PDF" },
         { href: "/settings/statuses", label: "Observation Statuses" },
       ]}
     />

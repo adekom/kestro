@@ -13,8 +13,8 @@ export default async function ReportSettingsPage() {
       <PageHeader title="Settings" />
       <SettingsNav />
       <div className="form-width space-y-6">
-        <CompanyPolicies settings={settings} />
-        <CompanyWideSettings settings={settings} />
+        <CompanyPolicies settings={settings} sections={["observations"]} />
+        <CompanyWideSettings settings={settings} part="general" />
       </div>
     </main>
   );

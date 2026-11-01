@@ -15,7 +15,7 @@ const M = { top: 50, bottom: 60, left: 50, right: 50 };
 const META_W = 100;
 const THUMB_GAP = 10;
 /** Photos per row in the body column, by the "photo size in PDF" setting. */
-const PER_ROW: Record<string, number> = { s: 4, m: 3, l: 2 };
+const PER_ROW: Record<string, number> = { s: 6, m: 4, l: 2 };
 
 const INK = "#222222";
 const MUTED = "#666666";
@@ -33,7 +33,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   const CONTENT_W = PAGE.width - M.left - M.right;
   const BODY_X = M.left + META_W + 12;
   const BODY_W = PAGE.width - M.right - BODY_X;
-  const perRow = PER_ROW[show.photoSize] ?? 3;
+  const perRow = PER_ROW[show.photoSize] ?? 4;
   // Updates sit to the right of their timeline dots.
   const DOT_R = 3.5;
   const UPDATE_X = BODY_X + 14;
