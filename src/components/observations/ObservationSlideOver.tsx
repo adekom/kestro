@@ -21,7 +21,7 @@ import { FileText, Trash2 } from "lucide-react";
 import { formatLongDate, statusOn } from "@/lib/domain";
 import type { StatusDef } from "@/lib/types";
 import type { ObservationDetail } from "@/server/services/reportView";
-import { PhotoAttachments, attachmentUrl } from "./PhotoAttachments";
+import { PhotoRows, PhotoUpload } from "./PhotoAttachments";
 import Link from "next/link";
 
 /**
@@ -138,6 +138,7 @@ function ObservationEditor({
 
   // Timeline: the original record, then each later visit with its updates and the status then.
   const laterDates = historyDates(item);
+  const attachedIds = new Set(item.attachments.map((a) => a.photoId));
 
   return (
     <div className="space-y-6">
@@ -190,6 +191,15 @@ function ObservationEditor({
         )}
       </section>
 
+      {/* Created in this report: its photos sit with the original record. */}
+      {!carriedForward && (
+        <section aria-labelledby="photos-heading" className="space-y-2">
+          <h3 id="photos-heading" className="field-inset text-sm font-semibold">Photos</h3>
+          <PhotoRows pid={projectId} rid={report.id} attachments={item.attachments} onChanged={onChanged} onError={setError} />
+          <PhotoUpload pid={projectId} rid={report.id} observationId={o.id} attachedPhotoIds={attachedIds} onChanged={onChanged} onError={setError} />
+        </section>
+      )}
+
       {carriedForward && (
       <section aria-labelledby="history-heading" className="space-y-3">
         <h3 id="history-heading" className="field-inset text-sm font-semibold">History</h3>
@@ -201,14 +211,16 @@ function ObservationEditor({
             last={laterDates.length === 0}
           >
             {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
+            <PhotoRows pid={projectId} rid={report.id} attachments={photosIn(item, o.originReportId)} onChanged={onChanged} onError={setError} />
           </TimelineEntry>
           {laterDates.map((date, i) => {
             const updates = item.updates.filter((u) => u.date === date);
+            const rid = reportOn(item, date);
             return (
               <TimelineEntry
                 key={date}
                 date={date}
-                heading={detail.reportLabels[reportOn(item, date) ?? ""] ?? ""}
+                heading={detail.reportLabels[rid ?? ""] ?? ""}
                 status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
                 last={i === laterDates.length - 1}
               >
@@ -225,6 +237,7 @@ function ObservationEditor({
                     <p key={u.id} className="whitespace-pre-wrap">{u.text}</p>
                   ),
                 )}
+                {rid && <PhotoRows pid={projectId} rid={report.id} attachments={photosIn(item, rid)} onChanged={onChanged} onError={setError} />}
               </TimelineEntry>
             );
           })}
@@ -243,10 +256,12 @@ function ObservationEditor({
             <button className="btn" disabled={!newUpdate.trim()}>Add update</button>
           </form>
         )}
+        <div className="space-y-2">
+          <div className="label">Add photos for {formatLongDate(report.visitDate)}</div>
+          <PhotoUpload pid={projectId} rid={report.id} observationId={o.id} attachedPhotoIds={attachedIds} onChanged={onChanged} onError={setError} />
+        </div>
       </section>
       )}
-
-      <PhotoAttachments pid={projectId} rid={report.id} item={item} onChanged={onChanged} onError={setError} />
 
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
@@ -303,9 +318,10 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
         {groups.length > 0 && fact("Group", groups.find((g) => g.id === o.groupId)?.name ?? "—")}
       </section>
       {o.originReportId === report.id ? (
-        <section>
+        <section className="space-y-2">
           <div className="label">Description</div>
           <p className="field-inset py-2 text-sm whitespace-pre-wrap">{o.description || "—"}</p>
+          <PhotoRows pid={projectId} rid={null} readOnly attachments={item.attachments} onChanged={() => undefined} onError={() => undefined} />
         </section>
       ) : (
       <section aria-labelledby="ro-history" className="space-y-3">
@@ -318,39 +334,26 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
             last={laterDates.length === 0}
           >
             {o.description && <p className="whitespace-pre-wrap">{o.description}</p>}
+            <PhotoRows pid={projectId} rid={null} readOnly attachments={photosIn(item, o.originReportId)} onChanged={() => undefined} onError={() => undefined} />
           </TimelineEntry>
           {laterDates.map((date, i) => {
             const updates = item.updates.filter((u) => u.date === date);
+            const rid = reportOn(item, date);
             return (
               <TimelineEntry
                 key={date}
                 date={date}
-                heading={detail.reportLabels[reportOn(item, date) ?? ""] ?? ""}
+                heading={detail.reportLabels[rid ?? ""] ?? ""}
                 status={statusById.get(statusOn(item.statusEvents, date) ?? "")}
                 last={i === laterDates.length - 1}
               >
                 {updates.map((u) => <p key={u.id} className="whitespace-pre-wrap">{u.text}</p>)}
+                {rid && <PhotoRows pid={projectId} rid={null} readOnly attachments={photosIn(item, rid)} onChanged={() => undefined} onError={() => undefined} />}
               </TimelineEntry>
             );
           })}
         </ol>
       </section>
-      )}
-      {item.attachments.length > 0 && (
-        <section aria-labelledby="ro-photos">
-          <h3 id="ro-photos" className="field-inset mb-2 text-sm font-semibold">Photos</h3>
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-            {item.attachments.map((a) => (
-              <li key={a.id}>
-                <a href={attachmentUrl(projectId, a, "web")} target="_blank" rel="noopener" title="Open full image">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded-md object-cover" loading="lazy" />
-                </a>
-                {a.caption && <p className="mt-1 text-xs text-text-muted">{a.caption}</p>}
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
     </div>
   );
@@ -363,11 +366,12 @@ function ObservationReadOnly({ projectId, detail }: { projectId: string; detail:
  */
 function historyDates(item: ObservationDetail["item"]): string[] {
   const o = item.observation;
-  const dates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date)])]
+  const laterPhotos = item.attachments.filter((a) => a.reportId !== o.originReportId);
+  const dates = [...new Set([...item.updates.map((u) => u.date), ...item.statusEvents.map((e) => e.date), ...laterPhotos.map((a) => a.date)])]
     .filter((d) => d > o.originalDate)
     .sort();
   return dates.filter((d) => {
-    if (item.updates.some((u) => u.date === d)) return true;
+    if (item.updates.some((u) => u.date === d) || laterPhotos.some((a) => a.date === d)) return true;
     const before = statusOn(item.statusEvents.filter((e) => e.date < d), d);
     return statusOn(item.statusEvents, d) !== before;
   });
@@ -375,7 +379,17 @@ function historyDates(item: ObservationDetail["item"]): string[] {
 
 /** The report a later history entry was recorded in. */
 function reportOn(item: ObservationDetail["item"], date: string): string | null {
-  return item.updates.find((u) => u.date === date)?.reportId ?? item.statusEvents.find((e) => e.date === date)?.reportId ?? null;
+  return (
+    item.updates.find((u) => u.date === date)?.reportId ??
+    item.statusEvents.find((e) => e.date === date)?.reportId ??
+    item.attachments.find((a) => a.date === date)?.reportId ??
+    null
+  );
+}
+
+/** Photos added in a given report. */
+function photosIn(item: ObservationDetail["item"], reportId: string) {
+  return item.attachments.filter((a) => a.reportId === reportId);
 }
 
 /** One dot on the history timeline, joined to the next by a vertical line. */

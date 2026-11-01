@@ -144,6 +144,26 @@ export async function detachPhoto(pid: string, attachmentId: string): Promise<vo
   await attachmentsCol(pid).doc(attachmentId).update({ detachedAt: now(), updatedAt: now() });
 }
 
+/**
+ * Deletes a photo from the project: it is removed from every observation that
+ * uses it, its public links stop working, and its files (original, derived
+ * and marked-up copies) are deleted. Not reversible.
+ */
+export async function deletePhoto(pid: string, photoId: string): Promise<void> {
+  const uses = await attachmentsCol(pid).where("photoId", "==", photoId).get();
+  await db().runTransaction(async (tx) => {
+    const photoRef = photosCol(pid).doc(photoId);
+    if (!(await tx.get(photoRef)).exists) throw new UserError("Photo not found.");
+    for (const d of uses.docs) {
+      const a = d.data() as PhotoAttachment;
+      if (a.shareToken) tx.update(photoSharesCol().doc(hashToken(a.shareToken)), { revokedAt: now() });
+      tx.update(d.ref, { detachedAt: a.detachedAt ?? now(), shareToken: null, markupImages: null, updatedAt: now() });
+    }
+    tx.delete(photoRef);
+  });
+  await bucket().deleteFiles({ prefix: `projects/${pid}/photos/${photoId}/` }).catch(() => undefined);
+}
+
 export async function reorderAttachments(pid: string, orderedIds: string[]): Promise<void> {
   const batch = db().batch();
   orderedIds.slice(0, 450).forEach((id, order) => batch.update(attachmentsCol(pid).doc(id), { order }));

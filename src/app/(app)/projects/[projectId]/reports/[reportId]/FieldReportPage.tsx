@@ -213,6 +213,7 @@ function ObservationCard({
       </div>
     <button
       type="button"
+      data-slideover-trigger=""
       onClick={onOpen}
       className={`block min-w-0 flex-1 rounded-md border p-4 text-left transition-colors ${
         active ? "border-primary bg-primary-subtle" : "border-border bg-surface hover:border-primary/60"
@@ -253,8 +254,11 @@ function ObservationCard({
           {item.attachments.map((a) => (
             <figure key={a.id} className="w-32">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-[4/3] w-full rounded object-cover" loading="lazy" />
-              {a.caption && <figcaption className="mt-0.5 truncate text-xs text-text-muted">{a.caption}</figcaption>}
+              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" loading="lazy" />
+              <figcaption className="mt-1 text-xs">
+                <span className="block font-semibold text-text-muted">{shortDate(a.date)}</span>
+                {a.caption && <span className="block">{a.caption}</span>}
+              </figcaption>
             </figure>
           ))}
         </div>

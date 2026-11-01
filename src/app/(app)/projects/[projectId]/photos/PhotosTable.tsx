@@ -32,7 +32,7 @@ export function PhotosTable({ projectId, rows, isAdmin }: { projectId: string; r
       weight: 0.8,
       cell: (r) => (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl(projectId, r.photo.id)} alt="" className="h-12 w-16 rounded object-cover" loading="lazy" />
+        <img src={photoUrl(projectId, r.photo.id)} alt="" className="h-12 w-12 rounded object-cover" loading="lazy" />
       ),
     },
     { id: "name", header: "File name", weight: 2.5, cell: (r) => r.photo.fileName, sortValue: (r) => r.photo.fileName },
@@ -84,7 +84,7 @@ function PhotoDetails({ projectId, row, isAdmin, onChanged }: { projectId: strin
     <div className="space-y-6">
       <a href={photoUrl(projectId, photo.id, "web")} target="_blank" rel="noopener" title="Open full image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photoUrl(projectId, photo.id, "web")} alt={photo.fileName} className="w-full rounded-md" />
+        <img src={photoUrl(projectId, photo.id, "web")} alt={photo.fileName} className="aspect-square w-full rounded-md object-cover" />
       </a>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
         <div>

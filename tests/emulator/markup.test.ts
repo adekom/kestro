@@ -4,7 +4,7 @@ import { resetEmulators } from "../support/fixtures";
 import { createProject } from "@/server/services/projects";
 import { createReport } from "@/server/services/reports";
 import { createObservation } from "@/server/services/observations";
-import { attachPhoto, getPhoto, listAttachments, readPhotoFile, uploadPhoto } from "@/server/services/photos";
+import { attachPhoto, deletePhoto, ensureShareToken, getPhoto, listAttachments, readPhotoFile, resolveShare, uploadPhoto } from "@/server/services/photos";
 import { readAttachmentImage, saveMarkup } from "@/server/services/markup";
 import { buildReportView } from "@/server/services/reportView";
 import { renderReportPdf } from "@/server/pdf/renderReport";
@@ -100,5 +100,24 @@ describe("photo markup", () => {
     const pdf = await renderReportPdf(await buildReportView(pid, r1), "https://reports.example.org");
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
     expect(pdf.toString("latin1")).toMatch(/\/Subtype \/Image/);
+  });
+});
+
+describe("deleting a photo from the project", () => {
+  it("removes it from every observation, revokes its links and deletes its files", async () => {
+    const { pid, r1, photoId, attachment } = await setup();
+    const other = await createObservation(pid, r1, { title: "Other", description: "", statusId: "nonconforming", groupId: null });
+    await attachPhoto(pid, photoId, other, r1);
+    await saveMarkup(pid, attachment.id, r1, { shapes: [box] }, 0, await png(1200, 900, "#f00"));
+    const token = await ensureShareToken(pid, attachment.id);
+
+    await deletePhoto(pid, photoId);
+    await expect(getPhoto(pid, photoId)).rejects.toThrow(/not found/i);
+    expect(await listAttachments(pid, attachment.observationId)).toEqual([]);
+    expect(await listAttachments(pid, other)).toEqual([]);
+    expect(await resolveShare(token)).toBeNull();
+    const [files] = await bucket().getFiles({ prefix: `projects/${pid}/photos/${photoId}/` });
+    expect(files).toHaveLength(0);
+    expect((await buildReportView(pid, r1)).observations.every((o) => o.attachments.length === 0)).toBe(true);
   });
 });

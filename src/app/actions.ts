@@ -262,6 +262,14 @@ export async function attachPhotoAction(pid: string, rid: string, oid: string, p
   });
 }
 
+export async function deletePhotoAction(pid: string, photoId: string) {
+  return toResult(async () => {
+    await requireUser();
+    await photos.deletePhoto(pid, photoId);
+    revalidatePath(`/projects/${pid}`, "layout");
+  });
+}
+
 export async function detachPhotoAction(pid: string, rid: string, attachmentId: string) {
   return toResult(async () => {
     await requireUser();

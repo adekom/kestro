@@ -237,6 +237,7 @@ export function DataTable<T>({
               return (
                 <tr
                   key={id}
+                  data-slideover-trigger={onRowClick ? "" : undefined}
                   onClick={() => onRowClick?.(row)}
                   className={`border-b border-border ${onRowClick ? "cursor-pointer" : ""} ${
                     active ? "bg-primary-subtle" : checked ? "bg-primary-subtle/50" : "hover:bg-surface-muted"

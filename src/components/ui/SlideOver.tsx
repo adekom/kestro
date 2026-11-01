@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
 /**
@@ -20,6 +20,23 @@ export function SlideOver({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const panel = useRef<HTMLElement>(null);
+
+  // A click outside closes the panel. Clicks in pop-ups and menus don't, nor do
+  // clicks on rows/cards that open panels (they toggle or switch it themselves).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || panel.current?.contains(t)) return;
+      if (t.closest("dialog[open], [role='menu'], [role='listbox'], [data-slideover-trigger]")) return;
+      if (document.querySelector("dialog[open]")) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, onClose]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -32,6 +49,7 @@ export function SlideOver({
 
   return (
     <aside
+      ref={panel}
       aria-label="Details"
       aria-hidden={!open}
       inert={!open}

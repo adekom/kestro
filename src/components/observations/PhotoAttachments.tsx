@@ -1,20 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, PenLine } from "lucide-react";
-import {
-  attachPhotoAction,
-  detachPhotoAction,
-  getPhotoLibraryAction,
-  reorderAttachmentsAction,
-  shareLinkAction,
-  updateCaptionAction,
-} from "@/app/actions";
+import { Link2, PenLine, Trash2, X } from "lucide-react";
+import { attachPhotoAction, deletePhotoAction, detachPhotoAction, getPhotoLibraryAction, shareLinkAction, updateCaptionAction } from "@/app/actions";
 import { useAutosave } from "@/components/autosave";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { InlineText } from "@/components/ui/InlineEdit";
 import { Modal } from "@/components/ui/Modal";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { MarkupEditor } from "./MarkupEditor";
-import type { ObservationInReport } from "@/server/services/reportView";
 import type { Photo, PhotoAttachment } from "@/lib/types";
 
 /** Image for one use of a photo: marked-up when it has markup. The version keeps caches fresh. */
@@ -24,21 +18,185 @@ export const attachmentUrl = (pid: string, a: { id: string; markupVersion?: numb
 export const photoUrl = (pid: string, photoId: string, v: "thumb" | "web" | "original" = "thumb") =>
   `/api/projects/${pid}/photos/${photoId}?v=${v}`;
 
-/** Photos on an observation, recorded against report `rid`. Calls `onChanged` after every change. */
-export function PhotoAttachments({
+type Attachment = PhotoAttachment & { photo: Photo };
+
+/**
+ * Photos as compact rows: 50×50 thumbnail, caption, copy link, mark up,
+ * remove, and a menu to delete the photo from the project. Captions, markup
+ * and removal are available only for photos attached in report \`rid\`.
+ */
+export function PhotoRows({
   pid,
   rid,
-  item,
+  attachments,
+  readOnly = false,
+  onChanged,
+  onError,
+}: {
+  pid: string;
+  /** The report being worked in; null in read-only views. */
+  rid: string | null;
+  attachments: Attachment[];
+  readOnly?: boolean;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <ul className="divide-y divide-border">
+      {attachments.map((a) => (
+        <PhotoRow key={a.id} pid={pid} rid={rid} attachment={a} editable={!readOnly && a.reportId === rid} readOnly={readOnly} onChanged={onChanged} onError={onError} />
+      ))}
+    </ul>
+  );
+}
+
+function PhotoRow({
+  pid,
+  rid,
+  attachment: a,
+  editable,
+  readOnly,
+  onChanged,
+  onError,
+}: {
+  pid: string;
+  rid: string | null;
+  attachment: Attachment;
+  editable: boolean;
+  readOnly: boolean;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const [caption, setCaption] = useState(a.caption);
+  const [copied, setCopied] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [confirm, setConfirm] = useState<"remove" | "delete" | null>(null);
+  useAutosave(`caption-${a.id}`, caption, (v) => updateCaptionAction(pid, a.id, v));
+
+  const icon = "rounded p-1.5 text-text-muted hover:bg-surface-muted hover:text-text disabled:invisible";
+  return (
+    <li className="flex items-center gap-2 py-1.5">
+      <a href={attachmentUrl(pid, a, "web")} target="_blank" rel="noopener" title="Open full image" className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" loading="lazy" />
+      </a>
+      <div className="min-w-0 flex-1">
+        {editable ? (
+          <InlineText id={`cap-${a.id}`} ariaLabel="Caption" placeholder="Add caption" value={caption} onChange={setCaption} />
+        ) : (
+          <p className="field-inset truncate text-sm">{caption || <span className="text-text-muted">No caption</span>}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        className={icon}
+        title={copied ? "Copied" : "Copy public link"}
+        aria-label="Copy public link"
+        onClick={async () => {
+          const res = await shareLinkAction(pid, a.id);
+          if (!res.ok) return onError(res.error);
+          await navigator.clipboard.writeText(res.data).catch(() => window.prompt("Public link", res.data));
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+      >
+        <Link2 className={`h-4 w-4 ${copied ? "text-success" : ""}`} aria-hidden />
+      </button>
+      {!readOnly && (
+        <>
+          <button type="button" className={icon} disabled={!editable} title="Mark up" aria-label="Mark up photo" onClick={() => setMarking(true)}>
+            <PenLine className="h-4 w-4" aria-hidden />
+          </button>
+          <button type="button" className={icon} disabled={!editable} title="Remove from observation" aria-label="Remove photo from observation" onClick={() => setConfirm("remove")}>
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+          <span className={editable ? "" : "invisible"}>
+            <RowMenu
+              label="More photo actions"
+              actions={[{ label: "Remove from report and delete from project photos", icon: Trash2, danger: true, onSelect: () => setConfirm("delete") }]}
+            />
+          </span>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={confirm === "remove"}
+        title="Remove photo from observation?"
+        confirmLabel="Remove"
+        onClose={() => setConfirm(null)}
+        onConfirm={async () => {
+          const res = await detachPhotoAction(pid, rid ?? a.reportId, a.id);
+          if (!res.ok) return res.error;
+          onChanged();
+          return null;
+        }}
+      >
+        <p>The photo stays in Project Photos and can be attached again. Public links already shared keep working.</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirm === "delete"}
+        title="Delete photo from the project?"
+        confirmLabel="Delete photo"
+        danger
+        onClose={() => setConfirm(null)}
+        onConfirm={async () => {
+          const res = await deletePhotoAction(pid, a.photoId);
+          if (!res.ok) return res.error;
+          onChanged();
+          return null;
+        }}
+      >
+        <p>
+          <span className="font-medium">{a.photo.fileName}</span> will be removed from this report, from every other observation that uses
+          it, and from Project Photos. Its public links will stop working. This can’t be undone.
+        </p>
+      </ConfirmDialog>
+
+      <Modal open={marking} onClose={() => setMarking(false)} title={`Mark up ${a.photo.fileName}`} width="max-w-[95vw]" dismissible={false}>
+        <MarkupEditor
+          imageUrl={attachmentUrl(pid, a, "plain-web")}
+          initial={a.markup?.shapes ?? []}
+          onCancel={() => setMarking(false)}
+          onSave={async (shapes, rendered) => {
+            const form = new FormData();
+            form.set("markup", JSON.stringify({ shapes }));
+            form.set("reportId", a.reportId);
+            form.set("expectedVersion", String(a.markupVersion ?? 0));
+            if (rendered) form.set("image", rendered, "markup.jpg");
+            try {
+              const res = await fetch(`/api/projects/${pid}/attachments/${a.id}/markup`, { method: "POST", body: form });
+              const body = (await res.json().catch(() => ({}))) as { error?: string };
+              if (!res.ok) return body.error ?? "The markup could not be saved.";
+            } catch {
+              return "The markup could not be saved. Check your connection and try again.";
+            }
+            setMarking(false);
+            onChanged();
+            return null;
+          }}
+        />
+      </Modal>
+    </li>
+  );
+}
+
+/** Adds photos to an observation for report \`rid\`: drop/choose files, or reuse from the project library. */
+export function PhotoUpload({
+  pid,
+  rid,
+  observationId,
+  attachedPhotoIds,
   onChanged,
   onError,
 }: {
   pid: string;
   rid: string;
-  item: ObservationInReport;
+  observationId: string;
+  attachedPhotoIds: Set<string>;
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
-  const oid = item.observation.id;
   const [library, setLibrary] = useState<Photo[] | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -51,7 +209,7 @@ export function PhotoAttachments({
     onError(null);
     const form = new FormData();
     form.set("reportId", rid);
-    form.set("observationId", oid);
+    form.set("observationId", observationId);
     files.forEach((f) => form.append("files", f));
     try {
       const res = await fetch(`/api/projects/${pid}/photos/upload`, { method: "POST", body: form });
@@ -65,38 +223,8 @@ export function PhotoAttachments({
     onChanged();
   }
 
-  const move = (index: number, delta: number) => {
-    const ids = item.attachments.map((a) => a.id);
-    [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
-    void reorderAttachmentsAction(pid, rid, ids).then(onChanged);
-  };
-  const attachedPhotoIds = new Set(item.attachments.map((a) => a.photoId));
-
   return (
-    <section aria-labelledby="photos-heading">
-      <h3 id="photos-heading" className="field-inset mb-2 text-sm font-semibold">Photos</h3>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-        {item.attachments.map((a, i) => (
-          <AttachmentCard
-            key={a.id}
-            pid={pid}
-            attachment={a}
-            first={i === 0}
-            last={i === item.attachments.length - 1}
-            onMove={(d) => move(i, d)}
-            onDetach={async () => {
-              const res = await detachPhotoAction(pid, rid, a.id);
-              if (!res.ok) onError(res.error);
-              else onChanged();
-            }}
-            onError={onError}
-            canMarkup={a.reportId === rid}
-            reportId={rid}
-            onChanged={onChanged}
-          />
-        ))}
-      </ul>
-
+    <div>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -108,7 +236,7 @@ export function PhotoAttachments({
           setDragging(false);
           void upload([...e.dataTransfer.files]);
         }}
-        className={`mt-3 rounded-md border-2 border-dashed p-4 text-center text-sm ${dragging ? "border-primary bg-primary-subtle" : "border-border text-text-muted"}`}
+        className={`rounded-md border-2 border-dashed p-4 text-center text-sm ${dragging ? "border-primary bg-primary-subtle" : "border-border text-text-muted"}`}
       >
         {uploading ?? (
           <>
@@ -143,10 +271,9 @@ export function PhotoAttachments({
           }}
         />
       </div>
-
       {picking && !library && <p className="mt-2 text-sm text-text-muted">Loading photos…</p>}
       {picking && library && (
-        <ul className="mt-3 grid max-h-72 grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 overflow-y-auto">
+        <ul className="mt-3 grid max-h-72 grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2 overflow-y-auto">
           {library.filter((p) => !attachedPhotoIds.has(p.id)).map((p) => (
             <li key={p.id}>
               <button
@@ -154,116 +281,18 @@ export function PhotoAttachments({
                 className="w-full rounded border border-border hover:ring-2 hover:ring-primary"
                 title={p.fileName}
                 onClick={async () => {
-                  const res = await attachPhotoAction(pid, rid, oid, p.id);
+                  const res = await attachPhotoAction(pid, rid, observationId, p.id);
                   if (!res.ok) onError(res.error);
                   else onChanged();
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoUrl(pid, p.id)} alt={p.fileName} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                <img src={photoUrl(pid, p.id)} alt={p.fileName} className="aspect-square w-full rounded object-cover" loading="lazy" />
               </button>
             </li>
           ))}
         </ul>
       )}
-    </section>
-  );
-}
-
-function AttachmentCard({
-  pid,
-  attachment,
-  first,
-  last,
-  onMove,
-  onDetach,
-  onError,
-  canMarkup,
-  reportId,
-  onChanged,
-}: {
-  pid: string;
-  attachment: PhotoAttachment & { photo: Photo };
-  first: boolean;
-  last: boolean;
-  onMove: (delta: number) => void;
-  onDetach: () => void;
-  onError: (message: string | null) => void;
-  /** Markups are edited only in the report where the photo was attached. */
-  canMarkup: boolean;
-  reportId: string;
-  onChanged: () => void;
-}) {
-  const [caption, setCaption] = useState(attachment.caption);
-  const [marking, setMarking] = useState(false);
-  const [copied, setCopied] = useState(false);
-  useAutosave(`caption-${attachment.id}`, caption, (v) => updateCaptionAction(pid, attachment.id, v));
-
-  return (
-    <li className="rounded-md border border-border bg-surface">
-      <a href={attachmentUrl(pid, attachment, "web")} target="_blank" rel="noopener" title="Open full image">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={attachmentUrl(pid, attachment)}
-          alt={caption || attachment.photo.fileName}
-          className="aspect-[4/3] w-full rounded-t-md object-cover"
-          loading="lazy"
-        />
-      </a>
-      <div className="space-y-1.5 p-2">
-        <label className="sr-only" htmlFor={`cap-${attachment.id}`}>Caption</label>
-        <InlineText id={`cap-${attachment.id}`} className="text-xs" placeholder="Add caption" value={caption} onChange={setCaption} />
-        <div className="flex flex-wrap items-center gap-x-2 text-xs">
-          <button type="button" className="link disabled:invisible" disabled={first} onClick={() => onMove(-1)} aria-label="Move photo earlier"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
-          <button type="button" className="link disabled:invisible" disabled={last} onClick={() => onMove(1)} aria-label="Move photo later"><ChevronRight className="h-4 w-4" aria-hidden /></button>
-          {canMarkup && (
-            <button type="button" className="link inline-flex items-center gap-0.5" onClick={() => setMarking(true)} title="Draw markups on this photo">
-              <PenLine className="h-3.5 w-3.5" aria-hidden /> Mark up
-            </button>
-          )}
-          <a className="link" href={photoUrl(pid, attachment.photoId, "original")}>Original</a>
-          <button
-            type="button"
-            className="link"
-            onClick={async () => {
-              const res = await shareLinkAction(pid, attachment.id);
-              if (!res.ok) return onError(res.error);
-              await navigator.clipboard.writeText(res.data).catch(() => window.prompt("Public link", res.data));
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-          >
-            {copied ? "Copied" : "Copy link"}
-          </button>
-          <button type="button" className="link ml-auto" onClick={onDetach} title="Detach from this observation (the file stays in the project library)">
-            Detach
-          </button>
-        </div>
-      </div>
-      <Modal open={marking} onClose={() => setMarking(false)} title={`Mark up ${attachment.photo.fileName}`} width="max-w-[95vw]" dismissible={false}>
-        <MarkupEditor
-          imageUrl={attachmentUrl(pid, attachment, "plain-web")}
-          initial={attachment.markup?.shapes ?? []}
-          onCancel={() => setMarking(false)}
-          onSave={async (shapes, rendered) => {
-            const form = new FormData();
-            form.set("markup", JSON.stringify({ shapes }));
-            form.set("reportId", reportId);
-            form.set("expectedVersion", String(attachment.markupVersion ?? 0));
-            if (rendered) form.set("image", rendered, "markup.jpg");
-            try {
-              const res = await fetch(`/api/projects/${pid}/attachments/${attachment.id}/markup`, { method: "POST", body: form });
-              const body = (await res.json().catch(() => ({}))) as { error?: string };
-              if (!res.ok) return body.error ?? "The markup could not be saved.";
-            } catch {
-              return "The markup could not be saved. Check your connection and try again.";
-            }
-            setMarking(false);
-            onChanged();
-            return null;
-          }}
-        />
-      </Modal>
-    </li>
+    </div>
   );
 }
