@@ -40,7 +40,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   const UPDATE_W = BODY_W - 14;
   const updateDate = (iso: string) => formatLongDate(iso);
   const thumbW = Math.floor((BODY_W - THUMB_GAP * (perRow - 1)) / perRow);
-  const THUMB = { w: thumbW, h: Math.round(thumbW * 0.75), gap: THUMB_GAP, captionH: show.photoCaption === "both" ? 32 : 22 };
+  const THUMB = { w: thumbW, h: thumbW, gap: THUMB_GAP, captionH: show.photoCaption === "both" ? 32 : 22 };
   const doc = new PDFDocument({
     size: settings.pageSize ?? "LETTER",
     margins: M,

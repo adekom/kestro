@@ -13,7 +13,6 @@ import { NewObservationForm } from "@/components/observations/NewObservationForm
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
 import { attachmentUrl } from "@/components/observations/PhotoAttachments";
 import { formatLongDate, formatShortDate, reportLabel, statusOn } from "@/lib/domain";
-import { cropPosition } from "@/lib/markup";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
 import type { Contact, StatusDef } from "@/lib/types";
 import { Card, ReportInfoPanel } from "./ReportInfoPanel";
@@ -242,7 +241,7 @@ function ObservationCard({
           {item.attachments.map((a) => (
             <figure key={a.id} className="w-32">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
+              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" loading="lazy" />
               <figcaption className="mt-1 text-xs">
                 {photoCaption !== "caption" && <span className="block font-semibold text-text-muted">{formatShortDate(a.date)}</span>}
                 {photoCaption !== "date" && a.caption && <span className="block">{a.caption}</span>}

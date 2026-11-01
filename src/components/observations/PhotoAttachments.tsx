@@ -9,7 +9,6 @@ import { InlineText } from "@/components/ui/InlineEdit";
 import { Modal } from "@/components/ui/Modal";
 import { RowMenu } from "@/components/ui/RowMenu";
 import { MarkupEditor } from "./MarkupEditor";
-import { cropPosition } from "@/lib/markup";
 import type { Photo, PhotoAttachment } from "@/lib/types";
 
 /** Image for one use of a photo: marked-up when it has markup. The version keeps caches fresh. */
@@ -106,7 +105,7 @@ function PhotoRow({
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
+        <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" loading="lazy" />
       </a>
       <div className="min-w-0 flex-1">
         {editable ? (

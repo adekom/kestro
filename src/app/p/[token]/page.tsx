@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Photo", robots: { index: false, foll
 
 /**
  * Public, read-only viewer for one shared photo. Shows only the requested
- * image and caption; never project records or other photos. A marked-up
- * photo shows its markup, with a toggle to see the original.
+ * image (square, as cropped) and caption; never project records or other
+ * photos. A marked-up photo shows its markup, with a toggle to hide it.
  */
 export default async function PublicPhotoPage({
   params,
@@ -36,7 +36,7 @@ export default async function PublicPhotoPage({
       <div className="flex items-center gap-4 text-sm">
         {hasMarkup && (
           <Link className="link" href={showOriginal ? `/p/${token}` : `/p/${token}?view=original`}>
-            {showOriginal ? "View markup" : "View original"}
+            {showOriginal ? "Show markup" : "Hide markup"}
           </Link>
         )}
         <a className="link" href={`${src}?v=original`}>Download original</a>

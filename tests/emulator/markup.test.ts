@@ -114,6 +114,46 @@ describe("photo markup", () => {
   });
 });
 
+describe("square images", () => {
+  const dims = async (b: Buffer) => {
+    const m = await sharp(b).metadata();
+    return [m.width, m.height];
+  };
+
+  it("serves square images everywhere except the original and the editor's whole photo", async () => {
+    const { pid, r1, photoId, attachment } = await setup(); // 1200 × 900 photo
+    const photo = await getPhoto(pid, photoId);
+    let [a] = await listAttachments(pid, attachment.observationId);
+    expect(await dims((await readAttachmentImage(a, photo, "thumb")).bytes)).toEqual([360, 360]);
+    expect(await dims((await readAttachmentImage(a, photo, "web")).bytes)).toEqual([900, 900]);
+    expect(await dims((await readAttachmentImage(a, photo, "plain-square")).bytes)).toEqual([900, 900]);
+    expect(await dims((await readAttachmentImage(a, photo, "plain-web")).bytes)).toEqual([1200, 900]);
+    expect(await dims((await readAttachmentImage(a, photo, "original")).bytes)).toEqual([1200, 900]);
+
+    // A marked-up copy is stored square, cut at the crop.
+    const left = await sharp({ create: { width: 1200, height: 900, channels: 3, background: "#0000FF" } })
+      .composite([{ input: await png(300, 900, "#FF0000"), left: 0, top: 0 }])
+      .png()
+      .toBuffer();
+    await saveMarkup(pid, attachment.id, r1, { shapes: [box], crop: { x: 0, y: 0.5 } }, 0, left);
+    [a] = await listAttachments(pid, attachment.observationId);
+    const web = (await readAttachmentImage(a, photo, "web")).bytes;
+    expect(await dims(web)).toEqual([900, 900]);
+    // Cropped from the left edge, so the red strip is in view.
+    const { data } = await sharp(web).extract({ left: 10, top: 450, width: 1, height: 1 }).raw().toBuffer({ resolveWithObject: true });
+    expect(data[0]).toBeGreaterThan(200);
+    expect(data[2]).toBeLessThan(80);
+  });
+
+  it("crops photos without markup at the saved crop position", async () => {
+    const { pid, r1, photoId, attachment } = await setup();
+    await saveMarkup(pid, attachment.id, r1, { shapes: [], crop: { x: 1, y: 0.5 } }, 0, null);
+    const [a] = await listAttachments(pid, attachment.observationId);
+    const thumb = (await readAttachmentImage(a, await getPhoto(pid, photoId), "thumb")).bytes;
+    expect(await dims(thumb)).toEqual([360, 360]);
+  });
+});
+
 describe("deleting a photo from the project", () => {
   it("removes it from every observation, revokes its links and deletes its files", async () => {
     const { pid, r1, photoId, attachment } = await setup();

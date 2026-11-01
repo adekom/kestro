@@ -5,7 +5,7 @@ import { attachmentsCol, photosCol, reportDoc, storagePaths } from "../paths";
 import { now } from "../time";
 import { ConflictError, UserError } from "../errors";
 import { readPhotoFile } from "./photos";
-import { validateMarkup, type Markup } from "@/lib/markup";
+import { CENTERED, validateMarkup, type Crop, type Markup } from "@/lib/markup";
 import type { Photo, PhotoAttachment, Report } from "@/lib/types";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -14,10 +14,11 @@ const THUMB_MAX_PX = 480;
 
 /**
  * Saves the markup for one use of a photo (an attachment). Allowed only from
- * the report where the photo was attached. \`image\` is the browser-rendered
- * copy with the markup drawn in; it is stored as web and thumbnail versions
- * for the app, the PDF and the public viewer. The original photo is never
- * touched. Saving no shapes and a centered crop removes the markup.
+ * the report where the photo was attached. `image` is the browser-rendered
+ * copy with the markup drawn in (the whole photo); it is cut to the square
+ * crop and stored as web and thumbnail versions for the app, the PDF and the
+ * public viewer. The original photo is never touched. Saving no shapes and a
+ * centered crop removes the markup.
  */
 export async function saveMarkup(
   pid: string,
@@ -58,8 +59,9 @@ export async function saveMarkup(
     if (!photo.width || Math.abs(ratio - photo.width / photo.height) > 0.02 * (photo.width / photo.height)) {
       throw new UserError("The marked-up image doesn't match the photo's proportions.");
     }
-    const web = await sharp(image).resize(WEB_MAX_PX, WEB_MAX_PX, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-    const thumb = await sharp(image).resize(THUMB_MAX_PX, THUMB_MAX_PX, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+    const square = await squareCrop(image, markup.crop);
+    const web = await sharp(square).resize(WEB_MAX_PX, WEB_MAX_PX, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    const thumb = await sharp(square).resize(THUMB_MAX_PX, THUMB_MAX_PX, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
     images = {
       web: storagePaths.markup(pid, photo.id, attachmentId, version, "web"),
       thumb: storagePaths.markup(pid, photo.id, attachmentId, version, "thumb"),
@@ -87,28 +89,48 @@ export async function saveMarkup(
   return version;
 }
 
-export type AttachmentVariant = "thumb" | "web" | "original" | "plain-web";
+export type AttachmentVariant = "thumb" | "web" | "original" | "plain-web" | "plain-square";
 
 /**
- * Image for one use of a photo: the marked-up copy when there is one (thumb,
- * web), otherwise the photo's own derivative. "original" is always the
- * untouched uploaded file; "plain-web" is the photo without markup.
+ * Cuts an image to a square at a crop position (object-position fractions,
+ * centered by default). Square images are returned unchanged.
+ */
+export async function squareCrop(bytes: Buffer, crop: Crop = CENTERED): Promise<Buffer> {
+  const { width = 0, height = 0 } = await sharp(bytes).metadata();
+  if (!width || !height || width === height) return bytes;
+  const side = Math.min(width, height);
+  const left = Math.round((width - side) * crop.x);
+  const top = Math.round((height - side) * crop.y);
+  return sharp(bytes).extract({ left, top, width: side, height: side }).jpeg({ quality: 85 }).toBuffer();
+}
+
+/**
+ * Image for one use of a photo. Everything except "original" and
+ * "plain-web" is square, cut at the attachment's crop:
+ * - thumb, web: with the markup drawn in when there is one
+ * - plain-square: without the markup
+ * - plain-web: the whole photo without markup (the markup editor's crop tool)
+ * - original: the untouched uploaded file
  */
 export async function readAttachmentImage(
-  attachment: Pick<PhotoAttachment, "markupImages">,
+  attachment: Pick<PhotoAttachment, "markupImages" | "markup">,
   photo: Photo,
   variant: AttachmentVariant,
 ): Promise<{ bytes: Buffer; contentType: string }> {
+  const crop = attachment.markup?.crop ?? CENTERED;
   const marked = attachment.markupImages;
   if (marked && (variant === "thumb" || variant === "web")) {
     try {
       const [bytes] = await bucket().file(variant === "thumb" ? marked.thumb : marked.web).download();
-      return { bytes, contentType: "image/jpeg" };
+      // Copies saved before markups were square are cut on the way out.
+      return { bytes: await squareCrop(bytes, crop), contentType: "image/jpeg" };
     } catch {
       // Fall back to the plain photo if the marked-up copy is missing.
     }
   }
-  return readPhotoFile(photo, variant === "plain-web" ? "web" : variant);
+  if (variant === "original" || variant === "plain-web") return readPhotoFile(photo, variant === "plain-web" ? "web" : "original");
+  const plain = await readPhotoFile(photo, variant === "thumb" ? "thumb" : "web");
+  return { bytes: await squareCrop(plain.bytes, crop), contentType: "image/jpeg" };
 }
 
 export type { Markup };

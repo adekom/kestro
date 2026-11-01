@@ -23,7 +23,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const v = new URL(req.url).searchParams.get("v");
   const original = v === "original";
   try {
-    const { bytes, contentType } = await readAttachmentImage(shared.attachment, shared.photo, original ? "original" : v === "plain" ? "plain-web" : "web");
+    const { bytes, contentType } = await readAttachmentImage(shared.attachment, shared.photo, original ? "original" : v === "plain" ? "plain-square" : "web");
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         ...PRIVATE_HEADERS,

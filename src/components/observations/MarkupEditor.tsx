@@ -40,7 +40,8 @@ import {
  * over the photo; Save renders the photo plus shapes to a canvas in the
  * browser (same paths and fonts as on screen) and uploads that copy with the
  * shapes. The original photo is never changed. The view is the square crop
- * the app shows; the crop tool slides the photo within it.
+ * shown everywhere else; only while the crop tool is active does the whole
+ * photo show, with the square to drag into place.
  */
 
 type Tool = "select" | "crop" | "rect" | "ellipse" | "line" | "arrow" | "cloud" | "text";
@@ -161,7 +162,7 @@ export function MarkupEditor({
   const [style, setStyle] = useState<Style>({ stroke: defaultColor, strokeWidth: defaultStroke, fill: null, fontColor: defaultColor, fontSize: "m" });
   const [crop, setCrop] = useState<Crop>(initialCrop ?? CENTERED);
   const viewRef = useRef<HTMLDivElement>(null);
-  const [side, setSide] = useState(0);
+  const [area, setArea] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Shape | null>(null);
   const [cloudPts, setCloudPts] = useState<Array<{ x: number; y: number }>>([]);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -172,11 +173,11 @@ export function MarkupEditor({
   const cropMoved = crop.x !== (initialCrop ?? CENTERED).x || crop.y !== (initialCrop ?? CENTERED).y;
   const dirty = past.length > 0 || cropMoved;
 
-  // The square view is as large as the space allows.
+  // The view is as large as the space allows.
   useEffect(() => {
     const el = viewRef.current;
     if (!el) return;
-    const fit = () => setSide(Math.floor(Math.min(el.clientWidth, el.clientHeight)));
+    const fit = () => setArea({ w: el.clientWidth, h: el.clientHeight });
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
@@ -311,11 +312,11 @@ export function MarkupEditor({
     const d = drag.current;
     if (!d) return;
     if (d.kind === "crop") {
-      // Pixels the photo extends past the square: dragging by that much goes edge to edge.
-      const overflow = side * (ratio - 1);
-      if (overflow <= 0) return;
-      if (W >= H) setCrop({ x: clamp(d.from.x - (e.clientX - d.startX) / overflow), y: 0.5 });
-      else setCrop({ x: 0.5, y: clamp(d.from.y - (e.clientY - d.startY) / overflow) });
+      // The square moves over the whole photo: dragging by the spare length goes edge to edge.
+      const spare = W >= H ? full.w - frame : full.h - frame;
+      if (spare <= 0) return;
+      if (W >= H) setCrop({ x: clamp(d.from.x + (e.clientX - d.startX) / spare), y: 0.5 });
+      else setCrop({ x: 0.5, y: clamp(d.from.y + (e.clientY - d.startY) / spare) });
     } else if (d.kind === "draw") {
       const { start } = d;
       const base = { id: "draft", stroke: style.stroke, strokeWidth: style.strokeWidth };
@@ -406,13 +407,22 @@ export function MarkupEditor({
   const kindForStyles: Tool | Shape["kind"] = selectedShape?.kind ?? tool;
   const fillable = kindForStyles !== "line" && kindForStyles !== "arrow";
   const isText = kindForStyles === "text";
-  // How much longer the photo's long side is than the square.
-  const ratio = W >= H ? W / H : H / W;
-  const layer = !size || !side
-    ? { left: 0, top: 0, width: side, height: side }
-    : W >= H
-      ? { left: -side * (ratio - 1) * crop.x, top: 0, width: side * ratio, height: side }
-      : { left: 0, top: -side * (ratio - 1) * crop.y, width: side, height: side * ratio };
+  // Normally a square view of the crop; with the crop tool, the whole photo and the square on it.
+  const side = Math.floor(Math.min(area.w, area.h));
+  const cropping = tool === "crop" && Boolean(size);
+  const fitScale = Math.min(area.w / W, area.h / H);
+  const full = { w: Math.floor(W * fitScale), h: Math.floor(H * fitScale) };
+  const frame = Math.min(full.w, full.h);
+  const ratio = W >= H ? W / H : H / W; // the long side relative to the square
+  const view = cropping ? { width: full.w, height: full.h } : { width: side, height: side };
+  const layer = cropping
+    ? { left: 0, top: 0, width: full.w, height: full.h }
+    : !size || !side
+      ? { left: 0, top: 0, width: side, height: side }
+      : W >= H
+        ? { left: -side * (ratio - 1) * crop.x, top: 0, width: side * ratio, height: side }
+        : { left: 0, top: -side * (ratio - 1) * crop.y, width: side, height: side * ratio };
+  const framePos = { left: (full.w - frame) * crop.x, top: (full.h - frame) * crop.y, width: frame, height: frame };
   const strokeW = useMemo(() => (size ? strokePx("m", W, H) : 2), [size, W, H]);
 
   return (
@@ -472,9 +482,10 @@ export function MarkupEditor({
 
       {/* Canvas */}
       <div ref={viewRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-        <div className="relative overflow-hidden" style={{ width: side, height: side }}>
-        {tool === "crop" && size && (
-          <div aria-hidden className="pointer-events-none absolute inset-0 z-10 border-2 border-dashed border-primary">
+        <div className="relative overflow-hidden" style={view}>
+        {cropping && (
+          // The square crop on the whole photo; the rest is dimmed.
+          <div aria-hidden className="pointer-events-none absolute z-10 border-2 border-dashed border-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" style={framePos}>
             {["top-0 left-0", "top-0 right-0", "bottom-0 right-0", "bottom-0 left-0"].map((pos) => (
               <span key={pos} className={`absolute h-3 w-3 border-2 border-primary bg-white ${pos}`} />
             ))}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/server/auth";
 import { getPhoto, readPhotoFile, type PhotoVariant } from "@/server/services/photos";
+import { squareCrop } from "@/server/services/markup";
 
 /** Authorized image delivery for signed-in staff (files stay private in Storage). */
 export async function GET(req: Request, ctx: { params: Promise<{ projectId: string; photoId: string }> }) {
@@ -10,7 +11,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ projectId: stri
   const variant: PhotoVariant = v === "original" || v === "web" ? v : "thumb";
   try {
     const photo = await getPhoto(projectId, photoId);
-    const { bytes, contentType } = await readPhotoFile(photo, variant);
+    const file = await readPhotoFile(photo, variant);
+    // Everywhere in the app photos are square (centered); only the original download is the whole photo.
+    const { bytes, contentType } = variant === "original" ? file : { bytes: await squareCrop(file.bytes), contentType: "image/jpeg" };
     const headers: Record<string, string> = {
       "Content-Type": contentType,
       "Cache-Control": "private, max-age=3600",
