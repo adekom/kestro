@@ -68,6 +68,8 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     doc.moveDown(0.6);
   };
   const pageBody = PAGE.height - M.top - M.bottom;
+  const SECTION_SIZE = 14; // Ongoing work, Attendance, Summary, Observations
+  const GROUP_SIZE = 12; // observation group names
   const heading = (text: string, minFollowing = 60, size = 12) => {
     ensureSpace(size * 2 + minFollowing); // never leave a heading orphaned at a page bottom
     doc.font("Helvetica-Bold").fontSize(size).fillColor(INK).text(text, M.left, doc.y, { width: CONTENT_W });
@@ -111,14 +113,14 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   // ---- Sections, in the company's chosen order ----
   const renderOngoingWork = () => {
   if (show.showOngoingWork && report.ongoingWork.trim()) {
-    heading("Ongoing work", 30);
+    heading("Ongoing work", 30, SECTION_SIZE);
     doc.font("Helvetica").fontSize(10).fillColor(INK).text(report.ongoingWork.trim(), M.left, doc.y, { width: CONTENT_W });
     doc.moveDown(0.8);
   }
   };
   const renderAttendance = () => {
   if (show.showAttendance && report.attendees.length) {
-    heading("Attendance", 30);
+    heading("Attendance", 30, SECTION_SIZE);
     const who = (a: { id: string; name: string; company: string }) => view.attendees[a.id] ?? { name: a.name, firstName: a.name, company: a.company, role: "" };
     const col = { company: 165, role: 315, present: CONTENT_W - 50 };
     for (const a of sortAttendance(report.attendees, show.attendanceOrder, who)) {
@@ -139,7 +141,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   };
   const renderSummary = () => {
   if (show.summary && view.observations.length) {
-    heading("Summary of observations", 30);
+    heading("Summary of observations", 30, SECTION_SIZE);
     for (const o of view.observations) {
       ensureSpace(14);
       const y = doc.y;
@@ -153,7 +155,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
   }
   };
   const renderObservations = async () => {
-  rule();
+  heading("Observations", view.observations.length ? Math.min(measureObservation(view.observations[0]), pageBody - 60) : 30, SECTION_SIZE);
   const groups = [...project.groups].sort((a, b) => a.order - b.order);
   const sections: Array<{ title: string | null; items: ObservationInReport[] }> = [];
   const byGroup = (gid: string | null) => view.observations.filter((o) => (o.observation.groupId ?? null) === gid);
@@ -173,11 +175,17 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     doc.font("Helvetica-Oblique").fontSize(10).fillColor(MUTED).text("No observations in this report.", M.left, doc.y);
   }
 
+  if (!grouped && view.observations.length) {
+    doc.moveTo(M.left, doc.y).lineTo(PAGE.width - M.right, doc.y).lineWidth(0.25).strokeColor(RULE).stroke();
+    doc.moveDown(0.2);
+  }
   for (const section of sections) {
     if (section.title) {
       doc.moveDown(1);
-      // Keep the heading with its first observation.
-      heading(section.title, Math.min(measureObservation(section.items[0]), pageBody - 60), 14);
+      // Keep the heading with its first observation, separated by a rule.
+      heading(section.title, Math.min(measureObservation(section.items[0]), pageBody - 60) + 8, GROUP_SIZE);
+      doc.moveTo(M.left, doc.y).lineTo(PAGE.width - M.right, doc.y).lineWidth(0.25).strokeColor(RULE).stroke();
+      doc.moveDown(0.2);
     }
     for (const o of section.items) {
       await renderObservation(o);
@@ -228,6 +236,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       doc.font("Helvetica").fontSize(10);
       right += line(10, 0.2) + doc.heightOfString(o.observation.description.trim(), { width: BODY_W });
     }
+    if (o.updates.length) right += line(10, 0.6) + 10;
     for (const u of o.updates) {
       doc.font("Helvetica-Bold").fontSize(9);
       right += line(10, 0.5) + doc.heightOfString(updateDate(u.date), { width: UPDATE_W });
@@ -249,7 +258,7 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
     // Left column: number, status, original date.
     doc.font("Helvetica-Bold").fontSize(11).fillColor(INK).text(o.number, M.left, top, { width: META_W });
     statusChip(doc, statuses.get(o.statusId ?? ""), M.left, doc.y + 2, META_W);
-    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`Opened ${formatLongDate(o.observation.originalDate)}`, M.left, doc.y + 4, { width: META_W });
+    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(formatLongDate(o.observation.originalDate), M.left, doc.y + 4, { width: META_W });
     const leftEnd = doc.y;
     const startPage = currentPage();
 
@@ -260,6 +269,12 @@ export async function renderReportPdf(view: ReportView, publicBaseUrl: string): 
       doc.font("Helvetica").fontSize(10).fillColor(INK).text(o.observation.description.trim(), BODY_X, doc.y, { width: BODY_W });
     }
     const dots: Array<{ page: number; y: number; color: string | undefined }> = [];
+    if (o.updates.length) {
+      doc.moveDown(0.6);
+      ensureSpace(40);
+      doc.font("Helvetica-Bold").fontSize(7.5).fillColor(MUTED).text("UPDATES", BODY_X, doc.y, { width: BODY_W, characterSpacing: 0.5 });
+      doc.moveDown(-0.2);
+    }
     for (const u of o.updates) {
       doc.moveDown(0.5);
       ensureSpace(26);
