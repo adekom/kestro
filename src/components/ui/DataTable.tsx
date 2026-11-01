@@ -29,6 +29,7 @@ export function DataTable<T>({
   rowId,
   filterText,
   onCreate,
+  toolbar,
   createLabel = "Create",
   filterPlaceholder = "Filter",
   onRowClick,
@@ -47,6 +48,8 @@ export function DataTable<T>({
   filterText: (row: T) => string;
   onCreate?: () => void;
   createLabel?: string;
+  /** More buttons beside the Create button. */
+  toolbar?: React.ReactNode;
   filterPlaceholder?: string;
   onRowClick?: (row: T) => void;
   activeRowId?: string | null;
@@ -140,6 +143,7 @@ export function DataTable<T>({
             {createLabel}
           </button>
         )}
+        {toolbar}
         {selectedRows.length > 0 && (
           <>
             {selectionActions?.(selectedRows, clearSelection)}

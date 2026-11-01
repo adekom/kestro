@@ -18,6 +18,7 @@
   --color-danger: #b42318;
   --color-danger-subtle: #fdecea;
   --color-success: #1f7a4d;
+  --color-warning: #8a5a00; /* amber, readable as text on white */
 
   --font-sans: var(--font-inter), system-ui, sans-serif;
 }

@@ -67,7 +67,10 @@ export interface SourceReport {
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 const NUMBER = /^\d+\.\d+$/;
 const LONG_DATE = /^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})$/;
-const UPDATE = /^Update (\d{2})\/(\d{2})\/(\d{2}):\s*/;
+/** "Update 07/28/26:", and the looser forms typed by hand ("Update 6/16/26:", "Updated 06/30/2026:"). */
+const UPDATE = /^Updated? (\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}):\s*/i;
+/** "07/28/26" style parts → "2026-07-28". */
+const updateDate = (m: RegExpMatchArray) => `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${pad(m[1])}-${pad(m[2])}`;
 const HEADING_SIZE = 11;
 const FOOTER_Y = 40;
 /** Text items closer than this (points) vertically are on the same line. */
@@ -340,7 +343,7 @@ function parseDetails(items: TextItem[]): SourceObservation[] {
       if (c.kind === "desc") description = description ? `${description}\n${text}` : text;
       else {
         const m = text.match(UPDATE)!;
-        updates.push({ date: `20${m[3]}-${m[1]}-${m[2]}`, text: text.replace(UPDATE, "").trim() });
+        updates.push({ date: updateDate(m), text: text.replace(UPDATE, "").trim() });
       }
     }
 

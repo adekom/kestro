@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, Upload } from "lucide-react";
 import { setProjectsArchivedAction } from "@/app/actions";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { formatLongDate } from "@/lib/domain";
-import type { Contact } from "@/lib/types";
+import type { Contact, StatusDef } from "@/lib/types";
 import { NewProjectForm } from "./NewProjectForm";
+import { ImportProjectWizard } from "./ImportProjectWizard";
 
 export interface ProjectRow {
   id: string;
@@ -37,15 +38,21 @@ export function ProjectsHome({
   rows,
   contacts,
   currentContactId,
+  statuses,
 }: {
   firstName: string;
   rows: ProjectRow[];
   contacts: Contact[];
   currentContactId: string | null;
+  /** Company statuses, for mapping an import's statuses. */
+  statuses: StatusDef[];
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>(rows.some((r) => r.mine && !r.archived) ? "mine" : "all");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  // A new wizard each time the import window opens.
+  const [importKey, setImportKey] = useState(0);
   // Projects awaiting confirmation to archive (or, on the Archived tab, restore).
   const [changing, setChanging] = useState<ProjectRow[] | null>(null);
   const restoring = view === "archived";
@@ -87,6 +94,18 @@ export function ProjectsHome({
         filterPlaceholder="Filter projects"
         onCreate={() => setCreating(true)}
         createLabel="Create project"
+        toolbar={
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setImportKey((k) => k + 1);
+              setImporting(true);
+            }}
+          >
+            <Upload className="h-4 w-4" aria-hidden /> Import project
+          </button>
+        }
         onRowClick={(r) => router.push(`/projects/${r.id}/reports`)}
         initialSort={{ id: "name", dir: "asc" }}
         selectionActions={(selected) => (
@@ -129,6 +148,9 @@ export function ProjectsHome({
         )}
         {!restoring && <p className="mt-2 text-text-muted">Nothing is deleted. Archived projects can be restored at any time.</p>}
       </ConfirmDialog>
+      <Modal open={importing} onClose={() => setImporting(false)} title="Import project from ArchiSnapper" width="max-w-4xl" dismissible={false}>
+        <ImportProjectWizard key={importKey} statuses={statuses} onClose={() => setImporting(false)} />
+      </Modal>
       <Modal open={creating} onClose={() => setCreating(false)} title="Create project" width="max-w-3xl">
         <NewProjectForm
           contacts={contacts}

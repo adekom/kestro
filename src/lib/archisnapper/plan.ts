@@ -148,8 +148,9 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
 
   // ---- Observations.
   const byNumber = new Map<string, PlanObservation>();
-  // Updates already taken for each observation, by date and position on that date.
-  const updatesByKey = new Map<string, Map<string, PlanObservation["updates"][number]>>();
+  // Updates already taken for each observation, by date and position on that
+  // date, with the full text last printed for each.
+  const updatesByKey = new Map<string, Map<string, { update: PlanObservation["updates"][number]; printed: string }>>();
   for (const r of reports) {
     for (const o of r.observations) {
       const [originSequence, localSeq] = o.number.split(".").map(Number);
@@ -187,11 +188,21 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
         perDate.set(u.date, n + 1);
         const key = `${u.date}#${n}`;
         const existing = taken.get(key);
-        if (existing) existing.text = u.text;
-        else {
+        if (!existing) {
           const added = { sequence: r.sequence, date: u.date, text: u.text };
           p.updates.push(added);
-          taken.set(key, added);
+          taken.set(key, { update: added, printed: u.text });
+        } else if (u.text !== existing.printed) {
+          if (u.text.startsWith(existing.printed)) {
+            // Text added to an earlier update is news from this visit.
+            const extra = u.text.slice(existing.printed.length).trim();
+            if (extra) p.updates.push({ sequence: r.sequence, date: visitDate.get(r.sequence) ?? u.date, text: extra });
+            issues.push({ level: "info", message: `Observation ${o.number}: text added in report ${r.sequence} to the update dated ${u.date} is imported as an update in report ${r.sequence}.` });
+          } else {
+            existing.update.text = u.text;
+            issues.push({ level: "info", message: `Observation ${o.number}: the update dated ${u.date} was reworded in report ${r.sequence}; Kestro keeps the latest wording for every report.` });
+          }
+          existing.printed = u.text;
         }
       }
     }

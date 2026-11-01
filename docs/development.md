@@ -100,3 +100,33 @@ photo was attached; saving no shapes removes the copies. The uploaded original i
 
 Rendered with pdfkit using the standard Helvetica fonts (real, selectable text). These fonts cover Western
 European characters; full Unicode would require embedding an open-licensed TTF.
+
+### ArchiSnapper import
+
+Projects page → **Import project**. An ArchiSnapper export has no data file:
+just one PDF per report and a folder of photos. The browser reads the PDFs with
+pdf.js (`src/lib/archisnapper/parse.ts`) and builds an import plan
+(`plan.ts`); nothing is uploaded until the user has reviewed it, mapped the
+statuses and chosen how to treat existing contacts.
+
+What the export does and doesn't tell us, and how the plan handles it:
+
+- Each report reprints every earlier update and photo. Updates are kept once,
+  in the report where they first appear; text added to an old update later is
+  imported as a new update in that later report; rewording keeps the latest text.
+- Later reports export photos again as new files *without* the observation
+  number. Files are matched to the captions printed under each observation
+  (same report, group and caption; file names truncate long captions), and each
+  photo is uploaded once, from its first report. Uncaptioned photos on carried
+  observations can't be linked and are listed, not guessed.
+- Status changes are only known per report, so they're dated to the report
+  where they first show.
+- Updates written in the report that created an observation go into its
+  description (Kestro keeps the creating visit's record there).
+
+The server (`src/server/services/importer.ts`, `/api/import`) writes the
+project in one batch, then photos one at a time. Each import has a record in
+`imports/{batchId}` (log, counts, contacts created/updated) and can be undone.
+
+Real exports are client data: keep them out of Git (`/example project/` and
+`*.local.test.ts` are ignored).

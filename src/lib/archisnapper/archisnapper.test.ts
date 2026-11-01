@@ -111,6 +111,19 @@ describe("reading ArchiSnapper reports", () => {
   });
 });
 
+describe("reading hand-typed updates", () => {
+  it("splits updates typed with looser prefixes into dated updates", () => {
+    const items = report(3, "June 30, 2026", [
+      { group: "LEVEL 1", status: ["OBSERVED"], number: "1.1", title: "Opening", opened: "May 19, 2026", text: ["Opening observed.", "Update 06/02/26: Opening provided.", "Update 6/16/26: No update.", "Updated 06/30/2026: Awaiting direction."] },
+    ]);
+    expect(parseReport(items).observations[0].updates).toEqual([
+      { date: "2026-06-02", text: "Opening provided." },
+      { date: "2026-06-16", text: "No update." },
+      { date: "2026-06-30", text: "Awaiting direction." },
+    ]);
+  });
+});
+
 describe("planning an ArchiSnapper import", () => {
   const files = [
     "observation_1-1_level-1_louvers_2026-07-14-20-00-00-0200_1_.jpg",

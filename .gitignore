@@ -65,3 +65,5 @@ credentials*.json
 
 # Real project exports used for import development (client data; never commit)
 /example project/
+# Local checks against real exports (never commit)
+*.local.test.ts
