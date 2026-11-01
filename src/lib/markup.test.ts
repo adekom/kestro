@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bounds, cloudPath, fontPx, shapePaths, strokePx, translate, validateMarkup, wrapText, type Shape } from "./markup";
+import { bounds, cloudPath, cropPosition, fontPx, shapePaths, strokePx, translate, validateMarkup, wrapText, type Shape } from "./markup";
 
 const rect: Shape = { id: "r", kind: "rect", x: 0.1, y: 0.2, w: 0.3, h: 0.4, stroke: "#E5352B", strokeWidth: "m", fill: null };
 const arrow: Shape = { id: "a", kind: "arrow", x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5, stroke: "#E5352B", strokeWidth: "l" };
@@ -54,5 +54,19 @@ describe("helpers", () => {
   it("moves and measures shapes", () => {
     expect(bounds(translate(cloud, 0.1, 0))).toMatchObject({ x: 0.2, y: 0.1 });
     expect(translate(arrow, 0, 0.1)).toMatchObject({ y1: 0.2, y2: 0.6 });
+  });
+});
+
+describe("crop position", () => {
+  it("keeps an off-center crop, drops a centered one and rejects out-of-range values", () => {
+    expect(validateMarkup({ shapes: [], crop: { x: 0.2, y: 0.5 } })).toEqual({ shapes: [], crop: { x: 0.2, y: 0.5 } });
+    expect(validateMarkup({ shapes: [], crop: { x: 0.5, y: 0.5 } })).toEqual({ shapes: [] });
+    expect(validateMarkup({ shapes: [], crop: null })).toEqual({ shapes: [] });
+    expect(validateMarkup({ shapes: [], crop: { x: 1.2, y: 0.5 } })).toMatch(/crop/);
+    expect(validateMarkup({ shapes: [], crop: { x: "0", y: 0.5 } })).toMatch(/crop/);
+  });
+  it("becomes a CSS object-position", () => {
+    expect(cropPosition({ crop: { x: 0, y: 0.5 } })).toBe("0% 50%");
+    expect(cropPosition(null)).toBe("50% 50%");
   });
 });

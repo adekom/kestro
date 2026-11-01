@@ -9,6 +9,7 @@ import { InlineText } from "@/components/ui/InlineEdit";
 import { Modal } from "@/components/ui/Modal";
 import { RowMenu } from "@/components/ui/RowMenu";
 import { MarkupEditor } from "./MarkupEditor";
+import { cropPosition } from "@/lib/markup";
 import type { Photo, PhotoAttachment } from "@/lib/types";
 
 /** Image for one use of a photo: marked-up when it has markup. The version keeps caches fresh. */
@@ -72,14 +73,18 @@ function PhotoRow({
   const [copied, setCopied] = useState(false);
   const [marking, setMarking] = useState(false);
   const [confirm, setConfirm] = useState<"remove" | "delete" | null>(null);
-  useAutosave(`caption-${a.id}`, caption, (v) => updateCaptionAction(pid, a.id, v));
+  useAutosave(`caption-${a.id}`, caption, async (v) => {
+    const res = await updateCaptionAction(pid, a.id, v);
+    if (res.ok) onChanged();
+    return res;
+  });
 
   const icon = "rounded p-1.5 text-text-muted hover:bg-surface-muted hover:text-text disabled:invisible";
   return (
     <li className="flex items-center gap-2 py-1.5">
       <a href={attachmentUrl(pid, a, "web")} target="_blank" rel="noopener" title="Open full image" className="shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" loading="lazy" />
+        <img src={attachmentUrl(pid, a)} alt={caption || a.photo.fileName} className="h-[50px] w-[50px] rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
       </a>
       <div className="min-w-0 flex-1">
         {editable ? (
@@ -157,10 +162,11 @@ function PhotoRow({
         <MarkupEditor
           imageUrl={attachmentUrl(pid, a, "plain-web")}
           initial={a.markup?.shapes ?? []}
+          initialCrop={a.markup?.crop ?? null}
           onCancel={() => setMarking(false)}
-          onSave={async (shapes, rendered) => {
+          onSave={async (shapes, crop, rendered) => {
             const form = new FormData();
-            form.set("markup", JSON.stringify({ shapes }));
+            form.set("markup", JSON.stringify({ shapes, crop }));
             form.set("reportId", a.reportId);
             form.set("expectedVersion", String(a.markupVersion ?? 0));
             if (rendered) form.set("image", rendered, "markup.jpg");

@@ -13,6 +13,7 @@ import { NewObservationForm } from "@/components/observations/NewObservationForm
 import { ObservationSlideOver } from "@/components/observations/ObservationSlideOver";
 import { attachmentUrl } from "@/components/observations/PhotoAttachments";
 import { formatLongDate, reportLabel, statusOn } from "@/lib/domain";
+import { cropPosition } from "@/lib/markup";
 import type { ObservationInReport, ReportView } from "@/server/services/reportView";
 import type { Contact, StatusDef } from "@/lib/types";
 import { Card, ReportInfoPanel } from "./ReportInfoPanel";
@@ -123,7 +124,7 @@ export function FieldReportPage({
               <div className="space-y-5">
                 {sections.map((section) => (
                   <div key={section.title ?? "all"} className="space-y-3">
-                    {section.title && <h3 className="text-xs font-semibold tracking-wide text-text-muted uppercase">{section.title}</h3>}
+                    {section.title && <h3 className="field-inset text-xs font-semibold tracking-wide text-text-muted uppercase">{section.title}</h3>}
                     {section.items.map((o) => (
                       <ObservationCard
                         key={o.observation.id}
@@ -135,6 +136,10 @@ export function FieldReportPage({
                         onOpen={() => setOpenId((id) => (id === o.observation.id ? null : o.observation.id))}
                         move={moveControls(o)}
                         statusById={statusById}
+                        updateLabel={(u) => {
+                          const seq = view.reportSequences[u.reportId];
+                          return seq ? `${formatLongDate(u.date)} · ${reportLabel(project.reportPrefix, seq)}` : formatLongDate(u.date);
+                        }}
                       />
                     ))}
                   </div>
@@ -170,6 +175,7 @@ function ObservationCard({
   onOpen,
   move,
   statusById,
+  updateLabel,
 }: {
   projectId: string;
   item: ObservationInReport;
@@ -180,11 +186,68 @@ function ObservationCard({
   /** Present only for this report's own observations. */
   move?: { up: (() => void) | null; down: (() => void) | null };
   statusById: ReadonlyMap<string, StatusDef>;
+  updateLabel: (u: ObservationInReport["updates"][number]) => string;
 }) {
   const o = item.observation;
   return (
     <div className="flex items-start gap-2">
-      {/* Reserved for every card so numbers line up, own or carried. */}
+    <button
+      type="button"
+      data-slideover-trigger=""
+      onClick={onOpen}
+      className={`block min-w-0 flex-1 rounded-md border py-4 pr-4 pl-3 text-left transition-colors ${
+        active ? "border-primary bg-primary-subtle" : "border-border bg-surface hover:border-primary/60"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="shrink-0 font-semibold">{item.number}</span>
+        <span className="min-w-0 flex-1 font-semibold">{o.title}</span>
+        <StatusBadge status={status} />
+      </div>
+      <div className="text-xs text-text-muted">{formatLongDate(o.originalDate)}</div>
+      {o.description && <p className="mt-2 text-sm whitespace-pre-wrap">{o.description}</p>}
+      {item.updates.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-2 text-xs font-semibold tracking-wide text-text-muted uppercase">Updates</h4>
+          <ol>
+            {item.updates.map((u, i) => {
+              const color = statusById.get(statusOn(item.statusEvents, u.date) ?? "")?.color;
+              const last = i === item.updates.length - 1;
+              return (
+                <li key={u.id} className="relative pb-3 text-sm last:pb-0">
+                  {!last && <span aria-hidden className="absolute top-3.5 bottom-0 -left-[7px] w-px bg-border" />}
+                  <span
+                    aria-hidden
+                    className="absolute top-1 -left-[11px] h-2.5 w-2.5 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: color ?? "var(--color-surface)" }}
+                  />
+                  <div className={`text-xs font-semibold ${u.reportId === reportId ? "text-primary-hover" : "text-text-muted"}`}>{updateLabel(u)}</div>
+                  <p className="whitespace-pre-wrap">{u.text}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+      {item.attachments.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-2 text-xs font-semibold tracking-wide text-text-muted uppercase">Photos</h4>
+          <div className="flex flex-wrap gap-2">
+          {item.attachments.map((a) => (
+            <figure key={a.id} className="w-32">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" style={{ objectPosition: cropPosition(a.markup) }} loading="lazy" />
+              <figcaption className="mt-1 text-xs">
+                <span className="block font-semibold text-text-muted">{shortDate(a.date)}</span>
+                {a.caption && <span className="block">{a.caption}</span>}
+              </figcaption>
+            </figure>
+          ))}
+          </div>
+        </div>
+      )}
+    </button>
+      {/* Reserved for every card so they line up, own or carried. */}
       <div className="flex w-7 shrink-0 flex-col items-center gap-0.5 pt-3">
         {move && (
           <>
@@ -211,59 +274,6 @@ function ObservationCard({
           </>
         )}
       </div>
-    <button
-      type="button"
-      data-slideover-trigger=""
-      onClick={onOpen}
-      className={`block min-w-0 flex-1 rounded-md border p-4 text-left transition-colors ${
-        active ? "border-primary bg-primary-subtle" : "border-border bg-surface hover:border-primary/60"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span className="shrink-0 font-semibold">{item.number}</span>
-        <span className="min-w-0 flex-1 font-semibold">{o.title}</span>
-        <StatusBadge status={status} />
-      </div>
-      <div className="text-xs text-text-muted">{formatLongDate(o.originalDate)}</div>
-      {o.description && <p className="mt-2 text-sm whitespace-pre-wrap">{o.description}</p>}
-      {item.updates.length > 0 && (
-        <div className="mt-4">
-          <h4 className="mb-2 text-xs font-semibold tracking-wide text-text-muted uppercase">Updates</h4>
-          <ol>
-            {item.updates.map((u, i) => {
-              const color = statusById.get(statusOn(item.statusEvents, u.date) ?? "")?.color;
-              const last = i === item.updates.length - 1;
-              return (
-                <li key={u.id} className="relative pb-3 pl-6 text-sm last:pb-0">
-                  {!last && <span aria-hidden className="absolute top-3.5 bottom-0 left-[5px] w-0.5 bg-border" />}
-                  <span
-                    aria-hidden
-                    className="absolute top-1 left-0 h-3 w-3 rounded-full border-2 border-surface ring-1 ring-border"
-                    style={{ backgroundColor: color ?? "var(--color-surface)" }}
-                  />
-                  <div className={`text-xs font-semibold ${u.reportId === reportId ? "text-primary-hover" : "text-text-muted"}`}>{shortDate(u.date)}</div>
-                  <p className="whitespace-pre-wrap">{u.text}</p>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      )}
-      {item.attachments.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {item.attachments.map((a) => (
-            <figure key={a.id} className="w-32">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachmentUrl(projectId, a)} alt={a.caption || a.photo.fileName} className="aspect-square w-full rounded object-cover" loading="lazy" />
-              <figcaption className="mt-1 text-xs">
-                <span className="block font-semibold text-text-muted">{shortDate(a.date)}</span>
-                {a.caption && <span className="block">{a.caption}</span>}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      )}
-    </button>
     </div>
   );
 }

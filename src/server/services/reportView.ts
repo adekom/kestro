@@ -34,6 +34,8 @@ export interface ReportView {
   project: Project;
   report: Report;
   observations: ObservationInReport[];
+  /** Display sequence of each report, for labeling history. */
+  reportSequences: Record<string, number>;
 }
 
 /**
@@ -71,7 +73,7 @@ export async function buildReportView(pid: string, rid: string): Promise<ReportV
     report.id,
     groupOrder,
   );
-  return { settings, project, report, observations: ordered.map((x) => x.item) };
+  return { settings, project, report, observations: ordered.map((x) => x.item), reportSequences: Object.fromEntries(seqMap) };
 }
 
 /**

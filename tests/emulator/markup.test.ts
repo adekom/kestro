@@ -84,6 +84,17 @@ describe("photo markup", () => {
     expect(cleared.markupImages ?? null).toBeNull();
   });
 
+  it("saves a crop position without shapes, and clears it when centered", async () => {
+    const { pid, r1, oid, attachment } = await setup();
+    await saveMarkup(pid, attachment.id, r1, { shapes: [], crop: { x: 0, y: 0.5 } }, 0, null);
+    let [saved] = await listAttachments(pid, oid);
+    expect(saved.markup).toEqual({ shapes: [], crop: { x: 0, y: 0.5 } });
+    expect(saved.markupImages ?? null).toBeNull();
+    await saveMarkup(pid, attachment.id, r1, { shapes: [], crop: { x: 0.5, y: 0.5 } }, 1, null);
+    [saved] = await listAttachments(pid, oid);
+    expect(saved.markup ?? null).toBeNull();
+  });
+
   it("keeps markups separate when the same photo is used twice", async () => {
     const { pid, r1, photoId, attachment } = await setup();
     const other = await createObservation(pid, r1, { title: "Other", description: "", statusId: "nonconforming", groupId: null });

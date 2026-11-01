@@ -17,7 +17,7 @@ const THUMB_MAX_PX = 480;
  * the report where the photo was attached. \`image\` is the browser-rendered
  * copy with the markup drawn in; it is stored as web and thumbnail versions
  * for the app, the PDF and the public viewer. The original photo is never
- * touched. Saving no shapes removes the markup.
+ * touched. Saving no shapes and a centered crop removes the markup.
  */
 export async function saveMarkup(
   pid: string,
@@ -76,7 +76,7 @@ export async function saveMarkup(
     const current = (await tx.get(ref)).data() as PhotoAttachment | undefined;
     if (!current) throw new UserError("Photo not found.");
     if ((current.markupVersion ?? 0) !== expectedVersion) throw new ConflictError("Someone else changed this markup. Reopen the photo to see their changes.");
-    tx.update(ref, { markup: markup.shapes.length ? markup : null, markupImages: images, markupVersion: version, updatedAt: now() });
+    tx.update(ref, { markup: markup.shapes.length || markup.crop ? markup : null, markupImages: images, markupVersion: version, updatedAt: now() });
     return current.markupImages ?? null;
   }).catch(async (e) => {
     // Don't leave unused files behind when the save is refused.

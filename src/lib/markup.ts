@@ -47,10 +47,28 @@ export interface TextShape extends Base {
 }
 export type Shape = BoxShape | LineShape | CloudShape | TextShape;
 
-/** Shapes in drawing order (later ones are on top). */
+/**
+ * Where the square crop shown in the app sits on the photo, as CSS
+ * object-position fractions (0 = left/top edge, 0.5 = centered). Only the
+ * longer side can move. The PDF shows the whole photo.
+ */
+export interface Crop {
+  x: number;
+  y: number;
+}
+
+/** Shapes in drawing order (later ones are on top). No crop means centered. */
 export interface Markup {
   shapes: Shape[];
+  crop?: Crop;
 }
+
+export const CENTERED: Crop = { x: 0.5, y: 0.5 };
+/** CSS object-position for an image shown with object-cover in the app. */
+export const cropPosition = (m: Pick<Markup, "crop"> | null | undefined) => {
+  const c = m?.crop ?? CENTERED;
+  return `${c.x * 100}% ${c.y * 100}%`;
+};
 
 export const MAX_SHAPES = 200;
 export const DEFAULT_COLOR = "#E5352B"; // red, the usual site-markup colour
@@ -102,6 +120,13 @@ export function validateMarkup(input: unknown): Markup | string {
       default:
         return "Unknown markup type.";
     }
+  }
+  const crop = (input as Markup).crop as unknown;
+  if (crop !== undefined && crop !== null) {
+    const c = crop as Crop;
+    const inRange = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
+    if (!inRange(c.x) || !inRange(c.y)) return "The crop position is invalid.";
+    if (c.x !== CENTERED.x || c.y !== CENTERED.y) return { shapes: shapes as Shape[], crop: { x: c.x, y: c.y } };
   }
   return { shapes: shapes as Shape[] };
 }

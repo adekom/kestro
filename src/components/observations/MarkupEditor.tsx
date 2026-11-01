@@ -6,6 +6,7 @@ import {
   BringToFront,
   Circle,
   Cloud,
+  Crop as CropIcon,
   Minus,
   MousePointer2,
   Redo2,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   bounds,
+  CENTERED,
   DEFAULT_COLOR,
   fontPx,
   PALETTE,
@@ -25,6 +27,7 @@ import {
   strokePx,
   translate,
   wrapText,
+  type Crop,
   type Shape,
   type Size,
   type TextShape,
@@ -34,10 +37,11 @@ import {
  * Full-screen markup editor for one use of a photo. Shapes are drawn as SVG
  * over the photo; Save renders the photo plus shapes to a canvas in the
  * browser (same paths and fonts as on screen) and uploads that copy with the
- * shapes. The original photo is never changed.
+ * shapes. The original photo is never changed. The view is the square crop
+ * the app shows; the crop tool slides the photo within it.
  */
 
-type Tool = "select" | "rect" | "ellipse" | "line" | "arrow" | "cloud" | "text";
+type Tool = "select" | "crop" | "rect" | "ellipse" | "line" | "arrow" | "cloud" | "text";
 interface Style {
   stroke: string;
   strokeWidth: Size;
@@ -48,10 +52,12 @@ interface Style {
 type Drag =
   | { kind: "draw"; start: { x: number; y: number } }
   | { kind: "move"; id: string; start: { x: number; y: number }; before: Shape[] }
-  | { kind: "handle"; id: string; handle: number; before: Shape[] };
+  | { kind: "handle"; id: string; handle: number; before: Shape[] }
+  | { kind: "crop"; startX: number; startY: number; from: Crop };
 
 const TOOLS: Array<{ tool: Tool; label: string; Icon: LucideIcon }> = [
-  { tool: "select", label: "Select", Icon: MousePointer2 },
+  { tool: "select", label: "Select (Esc)", Icon: MousePointer2 },
+  { tool: "crop", label: "Move photo within crop", Icon: CropIcon },
   { tool: "rect", label: "Rectangle", Icon: Square },
   { tool: "ellipse", label: "Ellipse", Icon: Circle },
   { tool: "line", label: "Line", Icon: Minus },
@@ -123,14 +129,16 @@ async function rasterize(img: HTMLImageElement, shapes: Shape[]): Promise<Blob> 
 export function MarkupEditor({
   imageUrl,
   initial,
+  initialCrop,
   onSave,
   onCancel,
 }: {
   /** The photo without markup (same proportions as the original). */
   imageUrl: string;
   initial: Shape[];
-  /** Receives the shapes and the rendered copy (null when there are no shapes). */
-  onSave: (shapes: Shape[], rendered: Blob | null) => Promise<string | null>;
+  initialCrop: Crop | null;
+  /** Receives the shapes, the crop (null when centered) and the rendered copy (null when there are no shapes). */
+  onSave: (shapes: Shape[], crop: Crop | null, rendered: Blob | null) => Promise<string | null>;
   onCancel: () => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -142,6 +150,9 @@ export function MarkupEditor({
   const [tool, setTool] = useState<Tool>("select");
   const [selected, setSelected] = useState<string | null>(null);
   const [style, setStyle] = useState<Style>({ stroke: DEFAULT_COLOR, strokeWidth: "m", fill: null, fontColor: DEFAULT_COLOR, fontSize: "m" });
+  const [crop, setCrop] = useState<Crop>(initialCrop ?? CENTERED);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const [side, setSide] = useState(0);
   const [draft, setDraft] = useState<Shape | null>(null);
   const [cloudPts, setCloudPts] = useState<Array<{ x: number; y: number }>>([]);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -149,7 +160,19 @@ export function MarkupEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
-  const dirty = past.length > 0;
+  const cropMoved = crop.x !== (initialCrop ?? CENTERED).x || crop.y !== (initialCrop ?? CENTERED).y;
+  const dirty = past.length > 0 || cropMoved;
+
+  // The square view is as large as the space allows.
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const fit = () => setSide(Math.floor(Math.min(el.clientWidth, el.clientHeight)));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const W = size?.w ?? 1;
   const H = size?.h ?? 1;
@@ -217,16 +240,17 @@ export function MarkupEditor({
       } else if (e.key === "Enter" && cloudPts.length) {
         e.preventDefault();
         finishCloud();
-      } else if (e.key === "Escape" && (cloudPts.length || selected)) {
-        // Escape clears the drawing state first, rather than closing the editor.
+      } else if (e.key === "Escape" && (tool !== "select" || cloudPts.length || selected)) {
+        // Escape goes back to the select tool, then clears the selection, rather than closing the editor.
         e.preventDefault();
         setCloudPts([]);
-        setSelected(null);
+        if (tool !== "select") setTool("select");
+        else setSelected(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, remove, finishCloud, selected, cloudPts.length, editingText]);
+  }, [undo, redo, remove, finishCloud, selected, cloudPts.length, editingText, tool]);
 
   const point = (e: React.PointerEvent | React.MouseEvent) => {
     const r = svgRef.current!.getBoundingClientRect();
@@ -239,6 +263,11 @@ export function MarkupEditor({
     const p = point(e);
     if (tool === "select") {
       setSelected(null);
+      return;
+    }
+    if (tool === "crop") {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      drag.current = { kind: "crop", startX: e.clientX, startY: e.clientY, from: crop };
       return;
     }
     if (tool === "cloud") {
@@ -271,7 +300,13 @@ export function MarkupEditor({
     setCursor(p);
     const d = drag.current;
     if (!d) return;
-    if (d.kind === "draw") {
+    if (d.kind === "crop") {
+      // Pixels the photo extends past the square: dragging by that much goes edge to edge.
+      const overflow = side * (ratio - 1);
+      if (overflow <= 0) return;
+      if (W >= H) setCrop({ x: clamp(d.from.x - (e.clientX - d.startX) / overflow), y: 0.5 });
+      else setCrop({ x: 0.5, y: clamp(d.from.y - (e.clientY - d.startY) / overflow) });
+    } else if (d.kind === "draw") {
       const { start } = d;
       const base = { id: "draft", stroke: style.stroke, strokeWidth: style.strokeWidth };
       if (tool === "line" || tool === "arrow") {
@@ -281,7 +316,7 @@ export function MarkupEditor({
         setDraft(
           tool === "text"
             ? { ...base, kind: "text", ...box, text: "", fill: style.fill, fontColor: style.fontColor, fontSize: style.fontSize }
-            : { ...base, kind: tool, ...box, fill: tool === "rect" ? style.fill : null },
+            : { ...base, kind: tool, ...box, fill: style.fill },
         );
       }
     } else if (d.kind === "move") {
@@ -296,7 +331,7 @@ export function MarkupEditor({
   const onUp = () => {
     const d = drag.current;
     drag.current = null;
-    if (!d) return;
+    if (!d || d.kind === "crop") return;
     if (d.kind === "draw") {
       const shape = draft;
       setDraft(null);
@@ -313,31 +348,31 @@ export function MarkupEditor({
     }
   };
 
-  // Style changes become the defaults and apply to the selected shape.
+  // With a shape selected, style changes apply to it only; otherwise they set the style of new shapes.
+  const shown: Style = selectedShape
+    ? {
+        stroke: selectedShape.stroke,
+        strokeWidth: selectedShape.strokeWidth,
+        fill: "fill" in selectedShape ? selectedShape.fill : style.fill,
+        fontColor: selectedShape.kind === "text" ? selectedShape.fontColor : style.fontColor,
+        fontSize: selectedShape.kind === "text" ? selectedShape.fontSize : style.fontSize,
+      }
+    : style;
   const applyStyle = (patch: Partial<Style>) => {
-    setStyle((s) => ({ ...s, ...patch }));
-    if (!selectedShape) return;
+    if (!selectedShape) {
+      setStyle((s) => ({ ...s, ...patch }));
+      return;
+    }
     const next = { ...selectedShape } as Shape & Partial<Style>;
     if (patch.stroke !== undefined) next.stroke = patch.stroke;
     if (patch.strokeWidth !== undefined) next.strokeWidth = patch.strokeWidth;
-    if (patch.fill !== undefined && (next.kind === "rect" || next.kind === "cloud" || next.kind === "text")) next.fill = patch.fill;
+    if (patch.fill !== undefined && "fill" in next) next.fill = patch.fill;
     if (next.kind === "text") {
       if (patch.fontColor !== undefined) next.fontColor = patch.fontColor;
       if (patch.fontSize !== undefined) next.fontSize = patch.fontSize;
     }
     commit(shapes.map((s) => (s.id === selectedShape.id ? (next as Shape) : s)));
   };
-  // Selecting a shape shows its own styles in the panel.
-  useEffect(() => {
-    if (!selectedShape) return;
-    setStyle((s) => ({
-      ...s,
-      stroke: selectedShape.stroke,
-      strokeWidth: selectedShape.strokeWidth,
-      ...("fill" in selectedShape ? { fill: selectedShape.fill } : {}),
-      ...(selectedShape.kind === "text" ? { fontColor: selectedShape.fontColor, fontSize: selectedShape.fontSize } : {}),
-    }));
-  }, [selectedShape]);
 
   const save = async () => {
     if (!imgRef.current) return;
@@ -345,7 +380,7 @@ export function MarkupEditor({
     setError(null);
     try {
       const rendered = shapes.length ? await rasterize(imgRef.current, shapes) : null;
-      const failure = await onSave(shapes, rendered);
+      const failure = await onSave(shapes, crop.x === CENTERED.x && crop.y === CENTERED.y ? null : crop, rendered);
       if (failure) setError(failure);
     } catch {
       setError("The markup could not be rendered. Please try again.");
@@ -359,12 +394,19 @@ export function MarkupEditor({
   };
 
   const kindForStyles: Tool | Shape["kind"] = selectedShape?.kind ?? tool;
-  const hasFill = kindForStyles === "rect" || kindForStyles === "cloud" || kindForStyles === "text";
+  const fillable = kindForStyles !== "line" && kindForStyles !== "arrow";
   const isText = kindForStyles === "text";
+  // How much longer the photo's long side is than the square.
+  const ratio = W >= H ? W / H : H / W;
+  const layer = !size || !side
+    ? { left: 0, top: 0, width: side, height: side }
+    : W >= H
+      ? { left: -side * (ratio - 1) * crop.x, top: 0, width: side * ratio, height: side }
+      : { left: 0, top: -side * (ratio - 1) * crop.y, width: side, height: side * ratio };
   const strokeW = useMemo(() => (size ? strokePx("m", W, H) : 2), [size, W, H]);
 
   return (
-    <div className="flex h-[80vh] flex-col gap-3">
+    <div className="flex h-[calc(90vh-8rem)] flex-col gap-3">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1">
         {TOOLS.map(({ tool: t, label, Icon }) => (
@@ -397,21 +439,31 @@ export function MarkupEditor({
         )}
       </div>
 
-      {/* Styles */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-        <ColorChoice label="Line" value={style.stroke} onChange={(c) => applyStyle({ stroke: c! })} />
-        <SizeChoice label="Thickness" value={style.strokeWidth} onChange={(v) => applyStyle({ strokeWidth: v })} />
-        {hasFill && <ColorChoice label="Fill" value={style.fill} allowNone onChange={(c) => applyStyle({ fill: c })} />}
-        {isText && <ColorChoice label="Text" value={style.fontColor} onChange={(c) => applyStyle({ fontColor: c! })} />}
-        {isText && <SizeChoice label="Text size" value={style.fontSize} onChange={(v) => applyStyle({ fontSize: v })} />}
+      {/* Styles: a dashed outline shows they apply to the selected markup. */}
+      <div
+        className={`flex flex-wrap items-start gap-3 self-start rounded-md p-1.5 text-xs outline-2 outline-dashed ${selectedShape ? "outline-primary" : "outline-transparent"}`}
+        title={selectedShape ? "Changes apply to the selected markup" : "Style for new markups"}
+      >
+        <StyleGroup label="Stroke">
+          <ColorChoice label="Stroke" value={shown.stroke} onChange={(c) => applyStyle({ stroke: c! })} />
+          <span className="h-6 w-px bg-border" aria-hidden />
+          <WidthChoice value={shown.strokeWidth} onChange={(v) => applyStyle({ strokeWidth: v })} />
+        </StyleGroup>
+        <StyleGroup label="Fill" disabled={!fillable}>
+          <ColorChoice label="Fill" value={shown.fill} allowNone onChange={(c) => applyStyle({ fill: c })} />
+        </StyleGroup>
+        {isText && (
+          <StyleGroup label="Text">
+            <ColorChoice label="Text" value={shown.fontColor} onChange={(c) => applyStyle({ fontColor: c! })} />
+            <SizeChoice label="Text size" value={shown.fontSize} onChange={(v) => applyStyle({ fontSize: v })} />
+          </StyleGroup>
+        )}
       </div>
 
       {/* Canvas */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-        <div
-          className="relative max-h-full max-w-full"
-          style={size ? { aspectRatio: `${W} / ${H}`, height: "100%", maxWidth: "100%" } : undefined}
-        >
+      <div ref={viewRef} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
+        <div className="relative overflow-hidden" style={{ width: side, height: side }}>
+        <div className="absolute" style={layer}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imgRef}
@@ -426,7 +478,7 @@ export function MarkupEditor({
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
               preserveAspectRatio="none"
-              className={`absolute inset-0 h-full w-full ${tool === "select" ? "cursor-default" : "cursor-crosshair"}`}
+              className={`absolute inset-0 h-full w-full ${tool === "select" ? "cursor-default" : tool === "crop" ? "cursor-move" : "cursor-crosshair"}`}
               onPointerDown={onBackgroundDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
@@ -440,7 +492,7 @@ export function MarkupEditor({
                   w={W}
                   h={H}
                   hidden={editingText === s.id}
-                  onPointerDown={(e) => onShapeDown(e, s)}
+                  onPointerDown={tool === "select" ? (e) => onShapeDown(e, s) : undefined}
                   onDoubleClick={() => s.kind === "text" && tool === "select" && setEditingText(s.id)}
                 />
               ))}
@@ -475,6 +527,7 @@ export function MarkupEditor({
             />
           )}
         </div>
+        </div>
       </div>
 
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
@@ -483,7 +536,6 @@ export function MarkupEditor({
           {saving ? "Saving…" : "Save"}
         </button>
         <button type="button" className="btn" disabled={saving} onClick={cancel}>Cancel</button>
-        <span className="ml-auto text-xs text-text-muted">The original photo is never changed.</span>
       </div>
     </div>
   );
@@ -643,7 +695,6 @@ function ColorChoice({ label, value, allowNone, onChange }: { label: string; val
   useEffect(() => setHex(value ?? ""), [value]);
   return (
     <div className="flex items-center gap-1.5" role="group" aria-label={`${label} colour`}>
-      <span className="mr-1 font-medium text-text-muted">{label}</span>
       {allowNone && (
         <button
           type="button"
@@ -695,6 +746,43 @@ function SizeChoice({ label, value, onChange }: { label: string; value: Size; on
           className={`h-7 w-7 rounded border text-xs font-semibold uppercase ${value === v ? "border-primary bg-primary-subtle text-primary-hover" : "border-border hover:bg-surface-muted"}`}
         >
           {v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StyleGroup({ label, disabled, children }: { label: string; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset disabled={disabled} className={`rounded-md border border-border px-2.5 pt-1 pb-2 ${disabled ? "opacity-40" : ""}`}>
+      <legend className="px-1 font-medium text-text-muted">{label}</legend>
+      <div className="flex flex-wrap items-center gap-3">{children}</div>
+    </fieldset>
+  );
+}
+
+const WIDTHS: Array<{ v: Size; label: string; px: number }> = [
+  { v: "s", label: "Thin", px: 1.5 },
+  { v: "m", label: "Medium", px: 3 },
+  { v: "l", label: "Thick", px: 5 },
+];
+
+function WidthChoice({ value, onChange }: { value: Size; onChange: (v: Size) => void }) {
+  return (
+    <div className="flex items-center gap-1.5" role="group" aria-label="Stroke width">
+      {WIDTHS.map(({ v, label, px }) => (
+        <button
+          key={v}
+          type="button"
+          title={label}
+          aria-label={`${label} stroke`}
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className={`h-6 w-6 rounded border border-black/15 bg-white text-text ${value === v ? "ring-2 ring-primary ring-offset-1" : ""}`}
+        >
+          <svg viewBox="0 0 24 24" className="h-full w-full" aria-hidden>
+            <line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" strokeWidth={px} strokeLinecap="round" />
+          </svg>
         </button>
       ))}
     </div>
