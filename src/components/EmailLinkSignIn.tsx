@@ -10,21 +10,22 @@ import {
   sendMagicLink,
 } from "@/lib/firebaseClient";
 
-// Per-tab record of the sign-in link this tab has already used (sessionStorage
-// survives a second page load in the same tab, unlike component state).
+// Record of the sign-in link already being used. Shared by all tabs
+// (localStorage): some apps open a clicked link twice, and the second tab must
+// wait for the first instead of trying the spent link.
 const HANDLED_KEY = "kestro.handledSignInLink";
 const linkCode = () => new URL(window.location.href).searchParams.get("oobCode");
 function handledLinkCode(): string | null {
   try {
-    return window.sessionStorage.getItem(HANDLED_KEY);
+    return window.localStorage.getItem(HANDLED_KEY);
   } catch {
     return null;
   }
 }
 function markLinkHandled(code: string | null) {
   try {
-    if (code) window.sessionStorage.setItem(HANDLED_KEY, code);
-    else window.sessionStorage.removeItem(HANDLED_KEY);
+    if (code) window.localStorage.setItem(HANDLED_KEY, code);
+    else window.localStorage.removeItem(HANDLED_KEY);
   } catch {
     // Without storage the guard simply doesn't apply.
   }
