@@ -74,9 +74,6 @@ export function StaffTable({
 
   return (
     <>
-      <p className="text-xs text-text-muted">
-        Only listed, enabled staff can sign in, using an email link sent to their address. Kestro sends no other email.
-      </p>
       <DataTable
         storageKey="staff"
         rows={users}

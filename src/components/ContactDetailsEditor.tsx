@@ -61,7 +61,6 @@ function Editor({ contact, onSaved }: { contact: Contact; onSaved?: () => void }
         {field("title", "Title")}
         {field("defaultRole", "Default role")}
       </div>
-      {contact.userEmail && <p className="text-xs text-text-muted">This person is staff; their email is their sign-in address and can’t be changed here.</p>}
     </div>
   );
 }

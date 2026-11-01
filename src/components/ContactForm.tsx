@@ -83,7 +83,6 @@ export function ContactForm({
         {field("title", "Title")}
         {field("defaultRole", "Default role on projects (e.g. Contractor)")}
       </div>
-      {emailLocked && <p className="text-xs text-text-muted">This person is staff; their email is their sign-in address and can’t be changed here.</p>}
       {children}
       {error && (
         <div role="alert" className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger">

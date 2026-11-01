@@ -62,7 +62,7 @@ export function StatusesEditor({
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-text-muted">
           <tr>
-            <th className="py-1 font-medium">Name</th>
+            <th className="field-inset py-1 font-medium">Name</th>
             <th className="py-1 font-medium">Color</th>
             <th className="py-1 font-medium">Resolved</th>
             <th />
