@@ -1,0 +1,24 @@
+Kestro import from ArchiSnapper — 800 Maynard
+Batch 108b0647-0030-4ca0-9aa2-125aea1258f6
+
+duplicate photo files skipped: 974
+
+note: Report 8: visit date taken as 2026-03-23 (the header says 2026-03-24), from the dates written on its observations and updates.
+note: Observation 13.6: the update dated 2026-07-28 was reworded in report 18; Kestro keeps the latest wording for every report.
+note: Observation 1.46: the update dated 2026-03-10 first appears in report 8 (visit 2026-03-23).
+note: Observation 8.3: no date opened is printed; using report 8's visit date.
+note: Observation 8.7: no date opened is printed; using report 8's visit date.
+note: Observation 9.5: an update written in the report where it was created is added to its description.
+note: Observation 9.7: an update written in the report where it was created is added to its description.
+note: Observation 9.8: an update written in the report where it was created is added to its description.
+note: Observation 9.9: an update written in the report where it was created is added to its description.
+note: Observation 11.11: an update written in the report where it was created is added to its description.
+note: Observation 11.12: an update written in the report where it was created is added to its description.
+note: Observation 11.17: an update written in the report where it was created is added to its description.
+note: Observation 12.6: an update written in the report where it was created is added to its description.
+note: Observation 13.1: an update written in the report where it was created is added to its description.
+note: Status history is taken from each report's printed status. ArchiSnapper exports don't record the day a status changed, so changes are dated to the report where they first show.
+note: Observation 1.13: 3 photos were removed in report 4. Kestro keeps them on the observation, so they show in later reports too.
+note: Observation 1.15: a photo was removed in report 4. Kestro keeps it on the observation, so it shows in later reports too.
+note: Observation 1.31: a photo was removed in report 4. Kestro keeps it on the observation, so it shows in later reports too.
+note: Observation 1.63: a photo was removed in report 4. Kestro keeps it on the observation, so it shows in later reports too.

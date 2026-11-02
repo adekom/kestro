@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue } from "firebase-admin/firestore";
+import { createHash } from "node:crypto";
 import { bucket, db } from "../firebaseAdmin";
 import { contactsCol, membershipsCol, observationsCol, projectDoc, projectsCol, reportDoc, statusEventsCol, updatesCol } from "../paths";
 import { newId, now } from "../time";
@@ -19,6 +19,9 @@ import type { Attendee, Contact, Group, Membership, Observation, ObservationUpda
  */
 
 const importsCol = () => db().collection("imports");
+/** One document per photo already imported, keyed by its path in the export: makes uploads safe to retry and resume. */
+const importedPhotosCol = (batchId: string) => importsCol().doc(batchId).collection("photos");
+const photoKey = (path: string) => createHash("sha256").update(path).digest("hex").slice(0, 40);
 
 /** What each status in the export becomes: an existing status, or a new one for this project. */
 export type StatusMapping = Record<string, { statusId: string } | { label: string; color: string }>;
@@ -35,6 +38,8 @@ export interface ImportRecord {
   updatedAt: string;
   counts: { reports: number; observations: number; updates: number; statusEvents: number; photosPlanned: number; photosImported: number; contactsCreated: number; contactsUpdated: number };
   issues: PlanIssue[];
+  /** Where photos go (observation IDs by number, report IDs by number), for resuming. */
+  targets?: { observations: Record<string, string>; reports: Record<number, string> };
   /** For undo: contacts this import created, and the earlier details of contacts it updated. */
   createdContactIds: string[];
   updatedContacts: Array<{ id: string; before: Pick<Contact, "firstName" | "lastName" | "phone" | "company" | "title" | "email" | "defaultRole"> }>;
@@ -261,7 +266,8 @@ export async function createProjectFromImport(plan: ImportPlan, statusMap: Statu
       });
     }
     await writer.close();
-    await importsCol().doc(batchId).update({ state: "photos", "counts.statusEvents": statusEvents, updatedAt: now() });
+    const targets = { observations: Object.fromEntries(obsIdOf), reports: Object.fromEntries(reportIdOf) };
+    await importsCol().doc(batchId).update({ state: "photos", "counts.statusEvents": statusEvents, targets, updatedAt: now() });
 
     return { batchId, projectId: pid, observations: Object.fromEntries(obsIdOf), reports: Object.fromEntries(reportIdOf) };
   } catch (e) {
@@ -280,26 +286,54 @@ async function liveImport(batchId: string): Promise<ImportRecord> {
 /** Adds one photo from the export to its observation, in the report where it first appeared. */
 export async function importPhoto(
   batchId: string,
-  target: { observationId: string; reportId: string; caption: string; order: number },
+  target: { path: string; observationId: string; reportId: string; caption: string; order: number },
   file: { name: string; bytes: Buffer },
   user: string,
 ): Promise<string> {
   const record = await liveImport(batchId);
+  // Already imported (a retry, or resuming): nothing to do.
+  const done = importedPhotosCol(batchId).doc(photoKey(target.path || file.name));
+  const existing = await done.get();
+  if (existing.exists) return existing.get("photoId") as string;
   const photoId = await uploadPhoto(record.projectId, target.reportId, target.observationId, file, user, { caption: target.caption, order: target.order, quiet: true });
-  await importsCol().doc(batchId).update({ "counts.photosImported": FieldValue.increment(1), updatedAt: now() });
+  await done.set({ path: target.path || file.name, photoId, at: now() });
   return photoId;
+}
+
+/** Paths of the photos already imported in this batch (for resuming). */
+export async function importedPhotoPaths(batchId: string): Promise<string[]> {
+  await liveImport(batchId);
+  const snap = await importedPhotosCol(batchId).select("path").get();
+  return snap.docs.map((d) => d.get("path") as string);
+}
+
+async function countImported(batchId: string): Promise<number> {
+  return (await importedPhotosCol(batchId).count().get()).data().count;
 }
 
 /** Records the end of an import, with any photos that failed. */
 export async function finishImport(batchId: string, failures: string[]): Promise<ImportRecord> {
   const record = await liveImport(batchId);
-  const issues = [...record.issues, ...failures.slice(0, 1000).map((message) => ({ level: "warning" as const, message }))];
-  await importsCol().doc(batchId).update({ state: "done", issues, updatedAt: now() });
-  return { ...record, state: "done", issues };
+  const photosImported = await countImported(batchId);
+  // Failures from earlier attempts are replaced by this attempt's (resuming retries them).
+  const issues = [...record.issues.filter((i) => !i.message.startsWith(PHOTO_FAILURE)), ...failures.slice(0, 1000).map((m) => ({ level: "warning" as const, message: `${PHOTO_FAILURE}${m}` }))];
+  const counts = { ...record.counts, photosImported };
+  await importsCol().doc(batchId).update({ state: "done", issues, counts, updatedAt: now() });
+  return { ...record, state: "done", issues, counts };
 }
 
+const PHOTO_FAILURE = "Photo not added: ";
+
 export async function getImport(batchId: string): Promise<ImportRecord> {
-  return liveImport(batchId);
+  const record = await liveImport(batchId);
+  return { ...record, counts: { ...record.counts, photosImported: await countImported(batchId) } };
+}
+
+/** The import that created a project, if it hasn't been undone. */
+export async function importForProject(pid: string): Promise<ImportRecord | null> {
+  const snap = await importsCol().where("projectId", "==", pid).limit(5).get();
+  const live = snap.docs.map((d) => d.data() as ImportRecord).find((r) => r.state !== "undone");
+  return live ? getImport(live.id) : null;
 }
 
 /**
@@ -313,6 +347,7 @@ export async function undoImport(batchId: string): Promise<void> {
   if (!record || record.state === "undone") return;
   const pid = record.projectId;
   await db().recursiveDelete(projectDoc(pid));
+  await db().recursiveDelete(importedPhotosCol(batchId));
   await bucket().deleteFiles({ prefix: `projects/${pid}/` }).catch(() => undefined);
   for (const id of record.createdContactIds) {
     const elsewhere = await projectsCol().where("contactIds", "array-contains", id).limit(1).get();

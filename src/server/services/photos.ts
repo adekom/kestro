@@ -103,24 +103,28 @@ export async function attachPhoto(pid: string, photoId: string, oid: string, rid
   if (!report || report.deletedAt) throw new UserError("Report not found.");
   if (!(await photosCol(pid).doc(photoId).get()).exists) throw new UserError("Photo not found.");
   const id = newId();
-  await db().runTransaction(async (tx) => {
-    const existing = await tx.get(attachmentsCol(pid).where("observationId", "==", oid));
-    const order = options.order ?? existing.docs.reduce((max, d) => Math.max(max, (d.data() as PhotoAttachment).order), -1) + 1;
-    const attachment: PhotoAttachment = {
-      id,
-      photoId,
-      observationId: oid,
-      reportId: rid,
-      date: report.visitDate,
-      order,
-      caption: (options.caption ?? "").slice(0, 500),
-      shareToken: null,
-      detachedAt: null,
-      createdAt: now(),
-      updatedAt: now(),
-    };
-    tx.create(attachmentsCol(pid).doc(id), attachment);
+  const attachment = (order: number): PhotoAttachment => ({
+    id,
+    photoId,
+    observationId: oid,
+    reportId: rid,
+    date: report.visitDate,
+    order,
+    caption: (options.caption ?? "").slice(0, 500),
+    shareToken: null,
+    detachedAt: null,
+    createdAt: now(),
+    updatedAt: now(),
   });
+  if (options.order !== undefined) {
+    // The order is known (imports): no need to look at the other photos.
+    await attachmentsCol(pid).doc(id).create(attachment(options.order));
+  } else {
+    await db().runTransaction(async (tx) => {
+      const existing = await tx.get(attachmentsCol(pid).where("observationId", "==", oid));
+      tx.create(attachmentsCol(pid).doc(id), attachment(existing.docs.reduce((max, d) => Math.max(max, (d.data() as PhotoAttachment).order), -1) + 1));
+    });
+  }
   if (!options.quiet) await notePhotoAdded(pid, oid, rid);
   return id;
 }

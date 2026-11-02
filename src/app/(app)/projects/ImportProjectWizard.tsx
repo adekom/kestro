@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FolderOpen, Info, Undo2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { parsePhotoFileName, parseReport, type SourcePhotoFile, type SourceReport } from "@/lib/archisnapper/parse";
 import { isArchiSnapperCsv, parseCsv, reportsFromCsv } from "@/lib/archisnapper/csv";
-import { buildImportPlan, titleCase, type ImportPlan } from "@/lib/archisnapper/plan";
+import { buildImportPlan, titleCase, type ImportPlan, type PlanPhoto } from "@/lib/archisnapper/plan";
 import { readPdfText } from "@/lib/archisnapper/readPdf";
 import { contactName } from "@/lib/domain";
 import type { Contact, StatusDef } from "@/lib/types";
@@ -38,7 +38,16 @@ interface ImportLog {
 const NEW_COLORS = ["#F5C26B", "#9EC5F2", "#C9A8E8", "#F2A0A0", "#9FD3A8", "#C3C9D1"];
 const PARALLEL_UPLOADS = 3;
 
-export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef[]; onClose: () => void }) {
+export function ImportProjectWizard({
+  statuses,
+  onClose,
+  resume,
+}: {
+  statuses: StatusDef[];
+  onClose: () => void;
+  /** Continue an interrupted import: choose the same folder again and only missing photos are uploaded. */
+  resume?: { batchId: string; projectId: string; projectName: string };
+}) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("choose");
@@ -46,6 +55,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
   const [progress, setProgress] = useState({ done: 0, total: 0, label: "" });
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [files, setFiles] = useState<Map<string, File>>(new Map());
+  const filesRef = useRef<Map<string, File> | null>(null);
   const [name, setName] = useState("");
   /** Where the data came from, shown on the review step. */
   const [sourceNote, setSourceNote] = useState("");
@@ -67,6 +77,14 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
     onClose();
   };
   const sorted = useMemo(() => [...statuses].sort((a, b) => a.order - b.order), [statuses]);
+
+  // Leaving the page mid-import would stop it: ask first.
+  useEffect(() => {
+    if (step !== "importing") return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [step]);
 
   // ---- 1. Read the export in the browser (nothing is uploaded yet).
   async function read(list: FileList | null) {
@@ -117,6 +135,15 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
     const built = buildImportPlan(reports, photos);
     setPlan(built);
     setFiles(byPath);
+    if (resume) {
+      if (built.project.name !== resume.projectName && !window.confirm(`This folder is for “${built.project.name}”, not “${resume.projectName}”. Resume anyway?`)) {
+        setStep("choose");
+        return;
+      }
+      setName(resume.projectName);
+      await resumeImportWith(built, byPath);
+      return;
+    }
     setName(built.project.name);
     // Statuses: same name as an existing one, or a new one.
     setStatusMap(
@@ -172,46 +199,114 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
       return;
     }
 
+    await uploadAndFinish(t, plan.photos, plan);
+  }
+
+  /**
+   * Uploads photos to their observations, three at a time. Each photo is
+   * retried; if the connection or server drops, uploading pauses and keeps
+   * retrying until it's back (or the import is cancelled). The server skips
+   * photos it already has, so retrying never adds a photo twice.
+   */
+  async function uploadAndFinish(t: Targets, list: PlanPhoto[], p: ImportPlan) {
     const failed: string[] = [];
     let done = 0;
-    const queue = [...plan.photos];
-    const reportOf = new Map(plan.reports.map((r) => [r.sequence, r]));
-    const worker = async () => {
-      for (let p = queue.shift(); p && !cancelled.current; p = queue.shift()) {
-        const file = files.get(p.path);
+    let waiting = 0;
+    const queue = [...list];
+    const show = () =>
+      setProgress({
+        done,
+        total: list.length,
+        label: waiting ? `Connection lost: retrying… (${done} of ${list.length} photos added)` : `Adding photos (${done} of ${list.length})`,
+      });
+    const send = async (photo: PlanPhoto): Promise<string | null> => {
+      const file = (filesRef.current ?? files).get(photo.path);
+      const target = { observationId: t.observations[photo.number], reportId: t.reports[photo.sequence] };
+      if (!file || !target.observationId || !target.reportId) return "the photo couldn't be matched to its observation";
+      for (let attempt = 0; !cancelled.current; attempt++) {
         const form = new FormData();
-        const target = { observationId: t.observations[p.number], reportId: t.reports[p.sequence] };
+        form.set("file", file, file.name);
+        form.set("path", photo.path);
+        form.set("observationId", target.observationId);
+        form.set("reportId", target.reportId);
+        form.set("caption", photo.caption);
+        form.set("order", String(photo.order));
+        let retryable: boolean;
         try {
-          if (!file || !target.observationId || !target.reportId) throw new Error("missing");
-          form.set("file", file, file.name);
-          form.set("observationId", target.observationId);
-          form.set("reportId", target.reportId);
-          form.set("caption", p.caption);
-          form.set("order", String(p.order));
           const res = await fetch(`/api/import/${t.batchId}`, { method: "POST", body: form });
-          if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "upload failed");
-        } catch (e) {
-          failed.push(`${p.path} (observation ${p.number}, report ${reportOf.get(p.sequence)?.sequence ?? p.sequence}): ${e instanceof Error && e.message !== "missing" ? e.message : "the photo couldn't be added"}.`);
+          if (res.ok) return null;
+          const message = ((await res.json().catch(() => ({}))) as { error?: string }).error ?? "the upload failed";
+          // A problem with the photo itself (400) won't fix itself; server trouble might.
+          if (res.status < 500 || attempt >= 4) return message;
+          retryable = true;
+        } catch {
+          retryable = true; // no connection: keep trying until it's back
         }
+        if (retryable) {
+          waiting++;
+          show();
+          await new Promise((r) => setTimeout(r, Math.min(30_000, 2_000 * 2 ** Math.min(attempt, 4))));
+          waiting--;
+        }
+      }
+      return "cancelled";
+    };
+    const worker = async () => {
+      for (let photo = queue.shift(); photo && !cancelled.current; photo = queue.shift()) {
+        const failure = await send(photo);
+        if (failure && failure !== "cancelled") failed.push(`${photo.path} (observation ${photo.number}, report ${photo.sequence}): ${failure}.`);
         done++;
-        setProgress({ done, total: plan.photos.length, label: `Adding photos (${done} of ${plan.photos.length})` });
+        show();
       }
     };
+    show();
     await Promise.all(Array.from({ length: PARALLEL_UPLOADS }, worker));
     if (cancelled.current) {
-      await undo(t.batchId);
+      // Cancelling a new import removes it; cancelling a resumed one just stops.
+      if (!resume) await undo(t.batchId);
       router.refresh();
       return;
     }
     setFailures(failed);
-    try {
-      const res = await fetch(`/api/import/${t.batchId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "finish", failures: failed }) });
-      setLog((await res.json()) as ImportLog);
-    } catch {
-      setLog({ counts: {}, issues: plan.issues });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const res = await fetch(`/api/import/${t.batchId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "finish", failures: failed }) });
+        if (res.ok) {
+          setLog((await res.json()) as ImportLog);
+          break;
+        }
+      } catch {
+        // retried below
+      }
+      if (attempt === 4) setLog({ counts: {}, issues: p.issues });
+      await new Promise((r) => setTimeout(r, 3_000));
     }
     setStep("done");
     router.refresh();
+  }
+
+  // ---- Resuming: upload only the photos the import doesn't have yet.
+  async function resumeImportWith(built: ImportPlan, byPath: Map<string, File>) {
+    filesRef.current = byPath;
+    await resumeImport(built);
+  }
+  async function resumeImport(built: ImportPlan) {
+    if (!resume) return;
+    setStep("importing");
+    setProgress({ done: 0, total: built.photos.length, label: "Checking which photos are already imported…" });
+    try {
+      const [recRes, doneRes] = await Promise.all([fetch(`/api/import/${resume.batchId}`), fetch(`/api/import/${resume.batchId}?photos=1`)]);
+      const record = (await recRes.json()) as { targets?: { observations: Record<string, string>; reports: Record<number, string> }; error?: string };
+      const already = new Set(((await doneRes.json()) as { paths?: string[] }).paths ?? []);
+      if (!recRes.ok || !record.targets) throw new Error(record.error ?? "This import can't be resumed.");
+      const t: Targets = { batchId: resume.batchId, projectId: resume.projectId, ...record.targets };
+      setTargets(t);
+      const missing = built.photos.filter((ph) => !already.has(ph.path) && t.observations[ph.number]);
+      await uploadAndFinish(t, missing, built);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "This import can't be resumed.");
+      setStep("choose");
+    }
   }
 
   const downloadLog = () => {
@@ -262,7 +357,11 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
           return null;
         }}
       >
-        <p>The import stops, and the project and photos added so far are removed.</p>
+        <p>
+          {resume
+            ? "Uploading stops. The photos added so far stay, and you can resume again later from the project's settings."
+            : "The import stops, and the project and photos added so far are removed."}
+        </p>
       </ConfirmDialog>
       {error && (
         <p className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger" role="alert">
@@ -272,6 +371,12 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
 
       {step === "choose" && (
         <div className="space-y-4">
+          {resume ? (
+            <p className="text-sm">
+              Choose the same export folder you imported <span className="font-medium">{resume.projectName}</span> from. Only the photos
+              that aren&apos;t in Kestro yet are uploaded.
+            </p>
+          ) : (
           <div className="space-y-2 text-sm">
             <p>
               To import from ArchiSnapper with maximum fidelity to your original data, you must perform two exports from ArchiSnapper via{" "}
@@ -288,6 +393,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
               </li>
             </ol>
           </div>
+          )}
           <div className="flex gap-2">
             <button type="button" className="btn btn-primary" onClick={() => input.current?.click()}>
               <FolderOpen className="h-4 w-4" aria-hidden /> Choose export folder
@@ -312,7 +418,11 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
           <div className="h-2 overflow-hidden rounded bg-surface-muted">
             <div className="h-full bg-primary transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
           </div>
-          {step === "importing" && <p className="text-xs text-text-muted">Keep this window open until the photos are done.</p>}
+          {step === "importing" && (
+            <p className="text-xs text-text-muted">
+              Keep this window open until the photos are done. If it&apos;s interrupted, you can resume from the project&apos;s settings.
+            </p>
+          )}
           <button type="button" className="btn" onClick={cancel}>Cancel import</button>
         </div>
       )}

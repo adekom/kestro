@@ -6,7 +6,7 @@ import { getProject } from "@/server/services/projects";
 import { listReports } from "@/server/services/reports";
 import { buildReportView } from "@/server/services/reportView";
 import { getProjectSettings } from "@/server/services/settings";
-import { createProjectFromImport, finishImport, getImport, importPhoto, previewImport, undoImport } from "@/server/services/importer";
+import { createProjectFromImport, finishImport, getImport, importedPhotoPaths, importForProject, importPhoto, previewImport, undoImport } from "@/server/services/importer";
 import { listAttachments } from "@/server/services/photos";
 import { projectDoc } from "@/server/paths";
 import { bucket } from "@/server/firebaseAdmin";
@@ -69,14 +69,21 @@ describe("importing an ArchiSnapper export", () => {
   it("adds photos to the report where they first appeared, without automatic updates", async () => {
     const t = await createProjectFromImport(plan(), statusMap, "keep", "t");
     const bytes = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#888" } }).jpeg().toBuffer();
-    await importPhoto(t.batchId, { observationId: t.observations["1.1"], reportId: t.reports[2], caption: "ductwork", order: 0 }, { name: "a.jpg", bytes }, "t");
+    await importPhoto(t.batchId, { path: "Pictures/a.jpg", observationId: t.observations["1.1"], reportId: t.reports[2], caption: "ductwork", order: 0 }, { name: "a.jpg", bytes }, "t");
     const [a] = await listAttachments(t.projectId, t.observations["1.1"]);
     expect(a).toMatchObject({ reportId: t.reports[2], caption: "ductwork", date: "2026-07-28" });
     const view = await buildReportView(t.projectId, t.reports[2]);
     expect(view.observations.find((o) => o.number === "1.1")!.updates.map((u) => u.text)).toEqual(["Duct rerouted."]);
     const record = await finishImport(t.batchId, ["b.jpg: not readable"]);
     expect(record.counts).toMatchObject({ reports: 2, observations: 3, updates: 2, photosPlanned: 1, photosImported: 1, contactsCreated: 1 });
-    expect(record.issues.at(-1)).toEqual({ level: "warning", message: "b.jpg: not readable" });
+    expect(record.issues.at(-1)).toEqual({ level: "warning", message: "Photo not added: b.jpg: not readable" });
+    // Sending the same photo again (a retry or a resumed import) doesn't add it twice.
+    await importPhoto(t.batchId, { path: "Pictures/a.jpg", observationId: t.observations["1.1"], reportId: t.reports[2], caption: "ductwork", order: 0 }, { name: "a.jpg", bytes }, "t");
+    expect(await listAttachments(t.projectId, t.observations["1.1"])).toHaveLength(1);
+    expect(await importedPhotoPaths(t.batchId)).toEqual(["Pictures/a.jpg"]);
+    // Finishing again (after resuming) replaces the earlier failures.
+    expect((await finishImport(t.batchId, [])).issues.some((i) => i.message.startsWith("Photo not added"))).toBe(false);
+    expect(await importForProject(t.projectId)).toMatchObject({ id: t.batchId, counts: { photosImported: 1 }, targets: { observations: t.observations } });
   });
 
   it("matches contacts by email and updates them only when asked; undo puts everything back", async () => {
@@ -112,7 +119,7 @@ describe("importing an ArchiSnapper export", () => {
   it("undo deletes contacts it created (unless another project uses them) and the photos", async () => {
     const t = await createProjectFromImport(plan(), statusMap, "keep", "t");
     const bytes = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#888" } }).jpeg().toBuffer();
-    await importPhoto(t.batchId, { observationId: t.observations["1.1"], reportId: t.reports[1], caption: "", order: 0 }, { name: "a.jpg", bytes }, "t");
+    await importPhoto(t.batchId, { path: "Pictures/a.jpg", observationId: t.observations["1.1"], reportId: t.reports[1], caption: "", order: 0 }, { name: "a.jpg", bytes }, "t");
     expect((await listContacts()).map((c) => c.email)).toContain("pat@builder.example");
     await undoImport(t.batchId);
     expect((await listContacts()).map((c) => c.email)).not.toContain("pat@builder.example");

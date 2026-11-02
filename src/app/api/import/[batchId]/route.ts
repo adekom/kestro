@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { AuthError, requireUser } from "@/server/auth";
 import { UserError } from "@/server/errors";
-import { finishImport, getImport, importPhoto, undoImport } from "@/server/services/importer";
+import { finishImport, getImport, importedPhotoPaths, importPhoto, undoImport } from "@/server/services/importer";
 
 /**
  * One import batch. Multipart POST with a file adds a photo; JSON
  * { action: "finish", failures } records the end; { action: "undo" } removes
- * everything the import created. GET returns the import log.
+ * everything the import created. GET returns the import log (with
+ * ?photos=1, the paths of the photos already imported, for resuming).
  */
 export async function POST(req: Request, ctx: { params: Promise<{ batchId: string }> }) {
   let user;
@@ -25,6 +26,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ batchId: strin
       const photoId = await importPhoto(
         batchId,
         {
+          path: String(form.get("path") ?? ""),
           observationId: String(form.get("observationId") ?? ""),
           reportId: String(form.get("reportId") ?? ""),
           caption: String(form.get("caption") ?? ""),
@@ -53,10 +55,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ batchId: strin
   }
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ batchId: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ batchId: string }> }) {
   try {
     await requireUser();
     const { batchId } = await ctx.params;
+    if (new URL(req.url).searchParams.get("photos")) return NextResponse.json({ paths: await importedPhotoPaths(batchId) });
     return NextResponse.json(await getImport(batchId));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Not found." }, { status: 404 });
