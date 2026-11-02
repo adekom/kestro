@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, FolderOpen, Info, Undo2 } from "lucide-rea
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { parsePhotoFileName, parseReport, type SourcePhotoFile, type SourceReport } from "@/lib/archisnapper/parse";
+import { isArchiSnapperCsv, parseCsv, reportsFromCsv } from "@/lib/archisnapper/csv";
 import { buildImportPlan, titleCase, type ImportPlan } from "@/lib/archisnapper/plan";
 import { readPdfText } from "@/lib/archisnapper/readPdf";
 import { contactName } from "@/lib/domain";
@@ -47,6 +48,8 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [files, setFiles] = useState<Map<string, File>>(new Map());
   const [name, setName] = useState("");
+  /** Where the data came from, shown on the review step. */
+  const [sourceNote, setSourceNote] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [statusMap, setStatusMap] = useState<Record<string, StatusChoice>>({});
   const [contactMode, setContactMode] = useState<"keep" | "update">("keep");
@@ -62,6 +65,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
     setError(null);
     const all = [...list];
     const pdfs = all.filter((f) => /\.pdf$/i.test(f.name));
+    const csvFile = all.find((f) => /\.csv$/i.test(f.name));
     const photos: SourcePhotoFile[] = [];
     const byPath = new Map<string, File>();
     for (const f of all) {
@@ -72,22 +76,34 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
         byPath.set(path, f);
       }
     }
-    if (!pdfs.length) {
-      setError("No report PDFs were found in that folder. Choose the folder ArchiSnapper exported (it contains Reports and Pictures).");
+    const records = csvFile ? parseCsv(await csvFile.text()) : [];
+    const useCsv = isArchiSnapperCsv(records);
+    if (!pdfs.length && !useCsv) {
+      setError("No reports.csv or report PDFs were found in that folder. Choose the folder ArchiSnapper exported (it contains Reports and Pictures).");
       return;
     }
     setStep("reading");
-    const reports: SourceReport[] = [];
+    const printed: SourceReport[] = [];
     try {
       for (const [i, f] of pdfs.entries()) {
         setProgress({ done: i, total: pdfs.length, label: `Reading ${f.name}` });
-        reports.push(parseReport(await readPdfText(f)));
+        printed.push(parseReport(await readPdfText(f)));
       }
     } catch {
       setError("A report PDF couldn't be read. Check that the folder is an ArchiSnapper export.");
       setStep("choose");
       return;
     }
+    // The CSV is the better source (exact photo links, clean text); the PDFs add
+    // attendees, status names and photo captions, which the CSV doesn't have.
+    const reports = useCsv ? reportsFromCsv(records, printed) : printed;
+    setSourceNote(
+      useCsv
+        ? pdfs.length
+          ? `Read from ${csvFile!.name}, with attendees, status names and photo captions from ${pdfs.length} report PDF${pdfs.length === 1 ? "" : "s"}.`
+          : `Read from ${csvFile!.name}. There are no report PDFs, so attendees and photo captions aren't imported.`
+        : `Read from ${pdfs.length} report PDF${pdfs.length === 1 ? "" : "s"}. Without ArchiSnapper's reports.csv, photos are linked to observations by their captions.`,
+    );
     const built = buildImportPlan(reports, photos);
     setPlan(built);
     setFiles(byPath);
@@ -215,9 +231,10 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
       {step === "choose" && (
         <div className="space-y-4">
           <p className="text-sm">
-            Choose the folder of a project exported from ArchiSnapper (with its <span className="font-medium">Reports</span> and{" "}
-            <span className="font-medium">Pictures</span> folders). Kestro reads it on this computer first and shows you what it found
-            before anything is saved.
+            Choose the folder of a project exported from ArchiSnapper: its <span className="font-medium">Pictures</span> folder, its{" "}
+            <span className="font-medium">Reports</span> PDFs, and ideally the <span className="font-medium">reports.csv</span> export,
+            which links photos to observations exactly. Kestro reads it on this computer first and shows you what it found before
+            anything is saved.
           </p>
           <button type="button" className="btn btn-primary" onClick={() => input.current?.click()}>
             <FolderOpen className="h-4 w-4" aria-hidden /> Choose export folder
@@ -246,6 +263,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
 
       {step === "review" && plan && (
         <div className="space-y-4">
+          {sourceNote && <p className="text-sm text-text-muted">{sourceNote}</p>}
           <div>
             <label className="label" htmlFor="import-name">Project name</label>
             <input id="import-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />

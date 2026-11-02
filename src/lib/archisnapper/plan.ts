@@ -90,6 +90,24 @@ function mostCommon(values: string[]): string | null {
 }
 
 /**
+ * Lines up two photo lists by caption, in order (longest common sequence),
+ * where an empty caption matches any. Returns current index → previous index.
+ */
+export function alignPhotos(prev: string[], cur: string[]): Map<number, number> {
+  const same = (a: string, b: string) => !a || !b || a === b;
+  const L = Array.from({ length: prev.length + 1 }, () => new Array<number>(cur.length + 1).fill(0));
+  for (let i = prev.length - 1; i >= 0; i--)
+    for (let j = cur.length - 1; j >= 0; j--) L[i][j] = same(prev[i], cur[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = new Map<number, number>();
+  for (let i = 0, j = 0; i < prev.length && j < cur.length; ) {
+    if (same(prev[i], cur[j]) && L[i][j] === L[i + 1][j + 1] + 1) out.set(j++, i++);
+    else if (L[i + 1][j] >= L[i][j + 1]) i++;
+    else j++;
+  }
+  return out;
+}
+
+/**
  * Whether a file name's caption is this caption. File names drop punctuation
  * (so may end in "-") and cut long captions short.
  */
@@ -186,10 +204,10 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
       for (const u of o.updates) {
         const n = perDate.get(u.date) ?? 0;
         perDate.set(u.date, n + 1);
-        const key = `${u.date}#${n}`;
+        const key = u.date ? `${u.date}#${n}` : `undated:${u.text}`;
         const existing = taken.get(key);
         if (!existing) {
-          const added = { sequence: r.sequence, date: u.date, text: u.text };
+          const added = { sequence: r.sequence, date: u.date || (visitDate.get(r.sequence) ?? ""), text: u.text };
           p.updates.push(added);
           taken.set(key, { update: added, printed: u.text });
         } else if (u.text !== existing.printed) {
@@ -245,13 +263,31 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
   const photoKeys = new Set<string>();
   let duplicateFiles = 0;
   const unmatchedCaptions: string[] = [];
+  const fileById = new Map(files.map((f) => [f.id, f]));
+  // Photos shown with each observation in the previous report (CSV exports).
+  const shownList = new Map<string, Array<{ slug: string; photo: PlanPhoto }>>();
   for (const r of reports) {
     const pool = filesByReport.get(r.sequence) ?? [];
     for (const o of r.observations) {
       const groupSlug = o.group ? slugify(o.group) : "";
       const occurrences = new Map<string, number>();
       const matched: Array<{ file: SourcePhotoFile; caption: string }> = [];
-      for (const caption of o.captions) {
+      if (o.photoIds) {
+        // The CSV says exactly which files are this observation's; captions come from the PDF when printed.
+        const captions = [...o.captions];
+        for (const id of o.photoIds) {
+          const file = fileById.get(id);
+          if (!file) {
+            unmatchedCaptions.push(`Report ${r.sequence}, observation ${o.number}: picture ${id} is listed in the CSV but its file isn't in the export.`);
+            continue;
+          }
+          used.add(file.path);
+          const i = captions.findIndex((c) => sameCaption(file.captionSlug, slugify(c)));
+          const caption = i >= 0 ? captions.splice(i, 1)[0] : file.captionSlug.replace(/-+/g, " ").trim();
+          matched.push({ file, caption });
+        }
+      }
+      for (const caption of o.photoIds ? [] : o.captions) {
         const slug = slugify(caption);
         const fits = (f: SourcePhotoFile, sameGroup: boolean) =>
           !used.has(f.path) && sameCaption(f.captionSlug, slug) && (f.number === null || f.number === o.number) && (!sameGroup || f.groupSlug === groupSlug);
@@ -264,9 +300,36 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
         matched.push({ file, caption });
       }
       // Photos without a caption have no printed caption to match; numbered files still say where they belong.
-      for (const f of pool) if (!used.has(f.path) && f.number === o.number && !f.captionSlug) {
+      if (!o.photoIds) for (const f of pool) if (!used.has(f.path) && f.number === o.number && !f.captionSlug) {
         used.add(f.path);
         matched.push({ file: f, caption: "" });
+      }
+      if (o.photoIds) {
+        // Lists only grow, except when a photo is removed or captioned later: match in order,
+        // treating a missing caption as matching any, so a photo is uploaded once.
+        const prev = shownList.get(o.number) ?? [];
+        const cur = matched.map((m) => ({ ...m, slug: m.file.captionSlug.replace(/^-+|-+$/g, "") }));
+        const pairs = alignPhotos(prev.map((p) => p.slug), cur.map((c) => c.slug));
+        const next: Array<{ slug: string; photo: PlanPhoto }> = [];
+        cur.forEach((c, j) => {
+          const i = pairs.get(j);
+          if (i !== undefined) {
+            duplicateFiles++;
+            const photo = prev[i].photo;
+            if (!photo.caption && c.caption) photo.caption = captionText(c.caption);
+            next.push({ slug: c.slug || prev[i].slug, photo });
+          } else {
+            const photo: PlanPhoto = { path: c.file.path, number: o.number, sequence: r.sequence, caption: captionText(c.caption), order: 0 };
+            photos.push(photo);
+            next.push({ slug: c.slug, photo });
+          }
+        });
+        const removed = prev.length - pairs.size;
+        if (removed > 0) {
+          issues.push({ level: "info", message: `Observation ${o.number}: ${removed === 1 ? "a photo was" : `${removed} photos were`} removed in report ${r.sequence}. Kestro keeps ${removed === 1 ? "it" : "them"} on the observation, so ${removed === 1 ? "it shows" : "they show"} in later reports too.` });
+        }
+        shownList.set(o.number, next);
+        continue;
       }
       for (const { file, caption } of matched) {
         const slug = slugify(caption);
@@ -280,6 +343,7 @@ export function buildImportPlan(source: SourceReport[], files: SourcePhotoFile[]
         photoKeys.add(key);
         photos.push({ path: file.path, number: o.number, sequence: r.sequence, caption: captionText(caption), order: 0 });
       }
+
     }
   }
   // Order within each observation: as first shown.

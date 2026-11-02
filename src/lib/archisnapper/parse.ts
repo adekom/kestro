@@ -27,7 +27,7 @@ export interface SourceAttendee {
 }
 
 export interface SourceUpdate {
-  /** The date written on the update (YYYY-MM-DD). */
+  /** The date written on the update (YYYY-MM-DD); empty when none was written. */
   date: string;
   text: string;
 }
@@ -44,6 +44,11 @@ export interface SourceObservation {
   updates: SourceUpdate[];
   /** Captions under its photos in this report, in order (as printed, including any leading date). */
   captions: string[];
+  /**
+   * ArchiSnapper picture IDs listed for it in this report (from the CSV export),
+   * in order. When given, they say exactly which photo files belong to it.
+   */
+  photoIds?: string[];
 }
 
 export interface SourceReport {
@@ -69,8 +74,17 @@ const NUMBER = /^\d+\.\d+$/;
 const LONG_DATE = /^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})$/;
 /** "Update 07/28/26:", and the looser forms typed by hand ("Update 6/16/26:", "Updated 06/30/2026:"). */
 const UPDATE = /^Updated? (\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}):\s*/i;
+/** The same with the date first: "12/2/25 Update:". */
+const UPDATE_DATE_FIRST = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}) Updated?:\s*/i;
 /** "07/28/26" style parts → "2026-07-28". */
 const updateDate = (m: RegExpMatchArray) => `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${pad(m[1])}-${pad(m[2])}`;
+
+/** An update's date and text, if the text starts like an update. */
+export function matchUpdate(text: string): { date: string; text: string } | null {
+  const t = text.trim();
+  const m = t.match(UPDATE) ?? t.match(UPDATE_DATE_FIRST);
+  return m ? { date: updateDate(m), text: t.slice(m[0].length).trim() } : null;
+}
 const HEADING_SIZE = 11;
 const FOOTER_Y = 40;
 /** Text items closer than this (points) vertically are on the same line. */
@@ -332,7 +346,7 @@ function parseDetails(items: TextItem[]): SourceObservation[] {
     // Description, then "Update MM/DD/YY: …" entries.
     const chunks: Array<{ kind: "desc" | "update"; items: TextItem[] }> = [];
     for (const l of lines(b.text)) {
-      const startsUpdate = UPDATE.test(l[0].text.trim());
+      const startsUpdate = matchUpdate(l[0].text) !== null;
       if (startsUpdate || !chunks.length) chunks.push({ kind: startsUpdate ? "update" : "desc", items: [...l] });
       else chunks.at(-1)!.items.push(...l);
     }
@@ -342,8 +356,7 @@ function parseDetails(items: TextItem[]): SourceObservation[] {
       const text = joinLines(c.items);
       if (c.kind === "desc") description = description ? `${description}\n${text}` : text;
       else {
-        const m = text.match(UPDATE)!;
-        updates.push({ date: updateDate(m), text: text.replace(UPDATE, "").trim() });
+        updates.push(matchUpdate(text)!);
       }
     }
 
@@ -358,6 +371,33 @@ function parseDetails(items: TextItem[]): SourceObservation[] {
       captions: captionCells(b.captions, columns),
     };
   });
+}
+
+/**
+ * An observation's notes from the CSV export: the description, then updates,
+ * separated by "******". Updates usually start "Update MM/DD/YY:"; one without
+ * a date keeps an empty date.
+ */
+export function parseNotes(notes: string): { description: string; updates: SourceUpdate[] } {
+  // Line breaks arrive as "\r"; keep them as paragraphs, without blank-ish lines.
+  const tidy = (p: string) =>
+    p
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l, i, all) => l || (i > 0 && all[i - 1]))
+      .join("\n")
+      .trim();
+  const parts = notes.split(/\s*\*{6}\s*/).map(tidy).filter(Boolean);
+  let description = "";
+  const updates: SourceUpdate[] = [];
+  parts.forEach((p, i) => {
+    const u = matchUpdate(p);
+    if (u) updates.push(u);
+    else if (i === 0) description = p;
+    else updates.push({ date: "", text: p });
+  });
+  return { description, updates };
 }
 
 /** Captions: one per photo cell; a cell's wrapped lines sit just below it at the same x. */
@@ -419,6 +459,8 @@ export interface SourcePhotoFile {
   number: string | null;
   groupSlug: string;
   captionSlug: string;
+  /** ArchiSnapper's picture ID (also in the CSV's picture links). */
+  id: string;
   /** Local date the photo was taken (YYYY-MM-DD) and a sortable timestamp. */
   date: string;
   timestamp: string;
@@ -438,6 +480,7 @@ export function parsePhotoFileName(path: string): SourcePhotoFile | null {
     groupSlug: m[3].toLowerCase(),
     captionSlug: m[4].toLowerCase(),
     date: m[5],
+    id: m[9],
     timestamp: `${m[5]}T${m[6]}:${m[7]}:${m[8]}#${m[9]}`,
   };
 }

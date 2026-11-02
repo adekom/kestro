@@ -103,22 +103,32 @@ European characters; full Unicode would require embedding an open-licensed TTF.
 
 ### ArchiSnapper import
 
-Projects page → **Import project**. An ArchiSnapper export has no data file:
-just one PDF per report and a folder of photos. The browser reads the PDFs with
-pdf.js (`src/lib/archisnapper/parse.ts`) and builds an import plan
-(`plan.ts`); nothing is uploaded until the user has reviewed it, mapped the
-statuses and chosen how to treat existing contacts.
+Projects page → **Import project**. Choose the exported project folder: its
+Pictures folder, its Reports PDFs, and ideally ArchiSnapper's `reports.csv`. The
+browser reads everything locally and builds an import plan (`plan.ts`); nothing
+is uploaded until the user has reviewed it, mapped the statuses and chosen how
+to treat existing contacts.
+
+- **With reports.csv** (`csv.ts`, preferred): one row per observation per report
+  with its status code, group, notes (description and updates separated by
+  `******`), date opened and picture links, whose IDs match the photo file
+  names exactly. The CSV has no attendees, photo captions or status names, so
+  those come from the PDFs (read with pdf.js, `parse.ts`) when present.
+- **PDFs only**: everything is read from the printed reports, and photos are
+  linked to observations by matching file names to printed captions.
 
 What the export does and doesn't tell us, and how the plan handles it:
 
 - Each report reprints every earlier update and photo. Updates are kept once,
   in the report where they first appear; text added to an old update later is
   imported as a new update in that later report; rewording keeps the latest text.
-- Later reports export photos again as new files *without* the observation
-  number. Files are matched to the captions printed under each observation
-  (same report, group and caption; file names truncate long captions), and each
-  photo is uploaded once, from its first report. Uncaptioned photos on carried
-  observations can't be linked and are listed, not guessed.
+- Later reports export photos again as new files (new IDs, no observation
+  number). With the CSV, each report's picture list is lined up with the
+  previous one (in order; a missing caption matches any) so each photo is
+  uploaded once, from its first report. Without it, files are matched to the
+  printed captions; uncaptioned photos on carried observations can't be linked
+  and are listed, not guessed. Photos removed in a later report are noted (Kestro
+  keeps them on the observation).
 - Status changes are only known per report, so they're dated to the report
   where they first show.
 - Updates written in the report that created an observation go into its
