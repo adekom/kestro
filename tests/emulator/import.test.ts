@@ -101,6 +101,14 @@ describe("importing an ArchiSnapper export", () => {
     expect((await getProject(kept.projectId)).name).toBe("Sample Project");
   });
 
+  it("never changes Kestro users, even when asked to update contacts", async () => {
+    const { addUser } = await import("@/server/services/users");
+    await addUser("pat@builder.example", "editor", { firstName: "Patricia", lastName: "Staff" });
+    await createProjectFromImport(plan(), statusMap, "update", "t");
+    const staff = (await listContacts()).find((c) => c.email === "pat@builder.example")!;
+    expect(staff).toMatchObject({ firstName: "Patricia", lastName: "Staff", phone: "" });
+  });
+
   it("undo deletes contacts it created (unless another project uses them) and the photos", async () => {
     const t = await createProjectFromImport(plan(), statusMap, "keep", "t");
     const bytes = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#888" } }).jpeg().toBuffer();

@@ -4,7 +4,6 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FolderOpen, Info, Undo2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { StatusBadge } from "@/components/StatusBadge";
 import { parsePhotoFileName, parseReport, type SourcePhotoFile, type SourceReport } from "@/lib/archisnapper/parse";
 import { isArchiSnapperCsv, parseCsv, reportsFromCsv } from "@/lib/archisnapper/csv";
 import { buildImportPlan, titleCase, type ImportPlan } from "@/lib/archisnapper/plan";
@@ -57,6 +56,16 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
   const [log, setLog] = useState<ImportLog | null>(null);
   const [failures, setFailures] = useState<string[]>([]);
   const [undoing, setUndoing] = useState(false);
+  // Set when the user cancels: reading stops, uploads stop, and anything created is removed.
+  const cancelled = useRef(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const undo = (batchId: string) =>
+    fetch(`/api/import/${batchId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "undo" }) });
+  const cancel = () => {
+    if (step === "importing") return setConfirmCancel(true);
+    cancelled.current = true;
+    onClose();
+  };
   const sorted = useMemo(() => [...statuses].sort((a, b) => a.order - b.order), [statuses]);
 
   // ---- 1. Read the export in the browser (nothing is uploaded yet).
@@ -86,6 +95,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
     const printed: SourceReport[] = [];
     try {
       for (const [i, f] of pdfs.entries()) {
+        if (cancelled.current) return;
         setProgress({ done: i, total: pdfs.length, label: `Reading ${f.name}` });
         printed.push(parseReport(await readPdfText(f)));
       }
@@ -150,7 +160,13 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
       if (!res.ok) throw new Error(body.error ?? "The import failed. Nothing was saved.");
       t = body;
       setTargets(t);
+      if (cancelled.current) {
+        await undo(t.batchId);
+        router.refresh();
+        return;
+      }
     } catch (e) {
+      if (cancelled.current) return;
       setError(e instanceof Error ? e.message : "The import failed. Nothing was saved.");
       setStep("contacts");
       return;
@@ -161,7 +177,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
     const queue = [...plan.photos];
     const reportOf = new Map(plan.reports.map((r) => [r.sequence, r]));
     const worker = async () => {
-      for (let p = queue.shift(); p; p = queue.shift()) {
+      for (let p = queue.shift(); p && !cancelled.current; p = queue.shift()) {
         const file = files.get(p.path);
         const form = new FormData();
         const target = { observationId: t.observations[p.number], reportId: t.reports[p.sequence] };
@@ -182,6 +198,11 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
       }
     };
     await Promise.all(Array.from({ length: PARALLEL_UPLOADS }, worker));
+    if (cancelled.current) {
+      await undo(t.batchId);
+      router.refresh();
+      return;
+    }
     setFailures(failed);
     try {
       const res = await fetch(`/api/import/${t.batchId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "finish", failures: failed }) });
@@ -218,10 +239,31 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
   const existingByKey = new Map(preview?.existing.map((e) => [e.key, e.contact]) ?? []);
   const newContacts = plan?.contacts.filter((c) => c.email && !existingByKey.has(c.key)) ?? [];
   const matchedContacts = plan?.contacts.filter((c) => existingByKey.has(c.key)) ?? [];
+  // Kestro users are never changed by an import; only external contacts can be updated.
+  const matchedUsers = matchedContacts.filter((c) => existingByKey.get(c.key)?.userEmail);
+  const matchedExternal = matchedContacts.filter((c) => !existingByKey.get(c.key)?.userEmail);
 
   return (
     <div className="space-y-5">
       <Steps step={step} />
+      <ConfirmDialog
+        open={confirmCancel}
+        title="Cancel the import?"
+        confirmLabel="Cancel import"
+        cancelLabel="Keep importing"
+        danger
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={async () => {
+          cancelled.current = true;
+          setProgress((p) => ({ ...p, label: "Cancelling and removing what was imported…" }));
+          setConfirmCancel(false);
+          // runImport removes the project once the uploads in progress stop.
+          onClose();
+          return null;
+        }}
+      >
+        <p>The import stops, and the project and photos added so far are removed.</p>
+      </ConfirmDialog>
       {error && (
         <p className="rounded-md border border-danger bg-danger-subtle p-3 text-sm text-danger" role="alert">
           {error}
@@ -230,15 +272,28 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
 
       {step === "choose" && (
         <div className="space-y-4">
-          <p className="text-sm">
-            Choose the folder of a project exported from ArchiSnapper: its <span className="font-medium">Pictures</span> folder, its{" "}
-            <span className="font-medium">Reports</span> PDFs, and ideally the <span className="font-medium">reports.csv</span> export,
-            which links photos to observations exactly. Kestro reads it on this computer first and shows you what it found before
-            anything is saved.
-          </p>
-          <button type="button" className="btn btn-primary" onClick={() => input.current?.click()}>
-            <FolderOpen className="h-4 w-4" aria-hidden /> Choose export folder
-          </button>
+          <div className="space-y-2 text-sm">
+            <p>
+              To import from ArchiSnapper with maximum fidelity to your original data, you must perform two exports from ArchiSnapper via{" "}
+              <span className="font-medium">Navigation &gt; More &gt; Export Data</span>:
+            </p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>
+                Choose a service such as Google Drive or Dropbox. ArchiSnapper will create a folder containing PDF field reports and all
+                images. This is the folder you should select for your Kestro import.
+              </li>
+              <li>
+                Select the CSV option in ArchiSnapper to export your project information as tabular data. ArchiSnapper will email a CSV file
+                attachment. Add that CSV to the project folder prior to importing to Kestro.
+              </li>
+            </ol>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary" onClick={() => input.current?.click()}>
+              <FolderOpen className="h-4 w-4" aria-hidden /> Choose export folder
+            </button>
+            <button type="button" className="btn" onClick={cancel}>Cancel</button>
+          </div>
           <input
             ref={input}
             type="file"
@@ -258,6 +313,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
             <div className="h-full bg-primary transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
           </div>
           {step === "importing" && <p className="text-xs text-text-muted">Keep this window open until the photos are done.</p>}
+          <button type="button" className="btn" onClick={cancel}>Cancel import</button>
         </div>
       )}
 
@@ -309,7 +365,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
           <Issues warnings={warnings} notes={notes} unmatched={plan.unmatchedFiles} />
           <div className="flex gap-2">
             <button type="button" className="btn btn-primary" onClick={() => setStep("statuses")}>Next: statuses</button>
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
@@ -359,11 +415,15 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
                           <input
                             type="color"
                             aria-label="New status colour"
-                            className="h-9 w-12 cursor-pointer rounded border border-border"
+                            className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border"
                             value={choice.color}
                             onChange={(e) => setStatusMap({ ...statusMap, [s.name]: { ...choice, color: e.target.value.toUpperCase() } })}
                           />
-                          <StatusBadge status={{ id: "preview", label: choice.label || "New status", color: choice.color, order: 0 }} />
+                          <HexInput
+                            value={choice.color}
+                            label={`Hex colour for ${choice.label || "the new status"}`}
+                            onChange={(color) => setStatusMap({ ...statusMap, [s.name]: { ...choice, color } })}
+                          />
                         </div>
                       )}
                     </td>
@@ -382,7 +442,9 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
               Next: contacts
             </button>
             <button type="button" className="btn" onClick={() => setStep("review")}>Back</button>
+            <button type="button" className="btn" onClick={cancel}>Cancel</button>
           </div>
+          <p className="text-xs text-text-muted">Statuses can be changed in the project&apos;s settings after it&apos;s created.</p>
         </div>
       )}
 
@@ -401,9 +463,25 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
               ))}
             </ul>
           )}
-          {matchedContacts.length > 0 && (
+          {matchedUsers.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm">{matchedContacts.length} already {matchedContacts.length === 1 ? "exists" : "exist"} in Kestro:</p>
+              <p className="text-sm">{matchedUsers.length === 1 ? "This Kestro user was" : `These ${matchedUsers.length} Kestro users were`} found in the export:</p>
+              <ul className="divide-y divide-border rounded-md border border-border text-sm">
+                {matchedUsers.map((c) => {
+                  const k = existingByKey.get(c.key)!;
+                  return (
+                    <li key={c.key} className="px-3 py-2">
+                      <span className="font-medium">{contactName(k) || k.email}</span>
+                      <span className="text-text-muted"> · {k.email}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {matchedExternal.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm">{matchedExternal.length} contact{matchedExternal.length === 1 ? "" : "s"} already {matchedExternal.length === 1 ? "exists" : "exist"} in Kestro:</p>
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-text-muted">
                   <tr className="border-b border-border">
@@ -412,7 +490,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
                   </tr>
                 </thead>
                 <tbody>
-                  {matchedContacts.map((c) => {
+                  {matchedExternal.map((c) => {
                     const k = existingByKey.get(c.key)!;
                     return (
                       <tr key={c.key} className="border-b border-border last:border-0">
@@ -439,6 +517,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
           <div className="flex gap-2">
             <button type="button" className="btn btn-primary" onClick={() => void runImport()}>Create project from import</button>
             <button type="button" className="btn" onClick={() => setStep("statuses")}>Back</button>
+            <button type="button" className="btn" onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
@@ -465,6 +544,7 @@ export function ImportProjectWizard({ statuses, onClose }: { statuses: StatusDef
             <button type="button" className="btn btn-danger" onClick={() => setUndoing(true)}>
               <Undo2 className="h-4 w-4" aria-hidden /> Undo import
             </button>
+            <button type="button" className="btn" onClick={onClose}>Close</button>
           </div>
           <ConfirmDialog
             open={undoing}
@@ -551,5 +631,27 @@ function Issues({ warnings, notes, unmatched }: { warnings: ImportPlan["issues"]
         </details>
       )}
     </div>
+  );
+}
+
+/** Hex code beside a colour swatch; applied once it's a valid #RRGGBB. */
+function HexInput({ value, label, onChange }: { value: string; label: string; onChange: (hex: string) => void }) {
+  const [text, setText] = useState(value);
+  const [prev, setPrev] = useState(value);
+  if (prev !== value) {
+    setPrev(value);
+    setText(value);
+  }
+  return (
+    <input
+      aria-label={label}
+      className="input w-28 shrink-0 font-mono text-xs"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) onChange(e.target.value.toUpperCase());
+      }}
+      onBlur={() => setText(value)}
+    />
   );
 }

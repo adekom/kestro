@@ -9,6 +9,7 @@ export function ConfirmDialog({
   title,
   children,
   confirmLabel,
+  cancelLabel = "Cancel",
   danger = false,
   onConfirm,
   onClose,
@@ -17,6 +18,8 @@ export function ConfirmDialog({
   title: string;
   children: React.ReactNode;
   confirmLabel: string;
+  /** Label of the button that closes without acting. */
+  cancelLabel?: string;
   danger?: boolean;
   /** Return an error message to keep the dialog open, or null when done. */
   onConfirm: () => Promise<string | null>;
@@ -34,7 +37,7 @@ export function ConfirmDialog({
         <div className="text-sm">{children}</div>
         {error && <p className="text-sm text-danger" role="alert">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={close} disabled={busy}>Cancel</button>
+          <button type="button" className="btn" onClick={close} disabled={busy}>{cancelLabel}</button>
           <button
             type="button"
             className={`btn ${danger ? "border-danger bg-danger text-white hover:bg-danger/90" : "btn-primary"}`}

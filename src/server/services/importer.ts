@@ -22,7 +22,7 @@ const importsCol = () => db().collection("imports");
 
 /** What each status in the export becomes: an existing status, or a new one for this project. */
 export type StatusMapping = Record<string, { statusId: string } | { label: string; color: string }>;
-/** Contacts already in Kestro (matched by email): update them from the import, or keep them as they are. */
+/** External contacts already in Kestro (matched by email): update them from the import, or keep them as they are. Kestro users are never changed. */
 export type ContactMode = "update" | "keep";
 
 export interface ImportRecord {
@@ -120,7 +120,8 @@ export async function createProjectFromImport(plan: ImportPlan, statusMap: Statu
       continue;
     }
     contactIdOf.set(c.key, existing.id);
-    if (contactMode === "update") {
+    // Kestro users are never changed by an import, only external contacts.
+    if (contactMode === "update" && !existing.userEmail) {
       const current = await getContact(existing.id);
       const next = { ...current, firstName: c.firstName || current.firstName, lastName: c.lastName || current.lastName, phone: c.phone || current.phone, company: c.company || current.company };
       if (next.firstName !== current.firstName || next.lastName !== current.lastName || next.phone !== current.phone || (!current.userEmail && next.company !== current.company)) {
