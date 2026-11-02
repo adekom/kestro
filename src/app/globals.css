@@ -37,7 +37,8 @@ body {
 @layer components {
   /* Standard page body: fills the space beside the nav (or the full width) and scrolls. */
   .page {
-    @apply flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto py-8 pr-10 pl-6;
+    /* relative: positioned content (e.g. sr-only) stays inside this scroll area, not the window. */
+    @apply relative flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto py-8 pr-10 pl-6;
   }
   /* Forms stay at a readable width, left-aligned inside the page. */
   .form-width {

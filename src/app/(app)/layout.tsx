@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [user, settings] = await Promise.all([requirePageUser(), getSettings()]);
   return (
     <CompanyProvider value={{ dateFormat: settings.dateFormat, defaultReportPrefix: settings.defaultReportPrefix }}>
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex h-12 shrink-0 items-center bg-text px-4">
         <Link href="/projects" className="text-lg" aria-label="kestro home">
           <Wordmark inverse />
